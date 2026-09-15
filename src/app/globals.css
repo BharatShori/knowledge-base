@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 42 33% 96%;
+  --foreground: 205 30% 18%;
+  --surface: 0 0% 100%;
+  --border: 38 20% 87%;
+  --accent: 166 44% 31%;
+  --accent-foreground: 0 0% 100%;
+  --muted: 42 23% 91%;
+  --muted-foreground: 205 12% 45%;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+body,
+button,
+input {
+  font-family: var(--font-body), sans-serif;
+}
+::selection {
+  background: hsl(var(--accent) / 0.18);
+}
+
+.markdown-content > :first-child {
+  margin-top: 0;
+}
+.markdown-content > :last-child {
+  margin-bottom: 0;
+}
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  margin: 1.5rem 0 0.6rem;
+  font-family: var(--font-display), serif;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.markdown-content h1 {
+  font-size: 1.75rem;
+}
+.markdown-content h2 {
+  font-size: 1.35rem;
+}
+.markdown-content h3 {
+  font-size: 1.1rem;
+}
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote,
+.markdown-content pre,
+.markdown-content table {
+  margin: 0.9rem 0;
+}
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.5rem;
+}
+.markdown-content ul {
+  list-style: disc;
+}
+.markdown-content ol {
+  list-style: decimal;
+}
+.markdown-content li + li {
+  margin-top: 0.3rem;
+}
+.markdown-content a {
+  color: hsl(var(--accent));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.markdown-content blockquote {
+  border-left: 3px solid hsl(var(--accent));
+  color: hsl(var(--muted-foreground));
+  padding-left: 1rem;
+}
+.markdown-content code {
+  border-radius: 0.25rem;
+  background: hsl(var(--muted));
+  padding: 0.15rem 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+.markdown-content pre {
+  overflow-x: auto;
+  border-radius: 0.375rem;
+  background: hsl(205 30% 18%);
+  color: hsl(42 33% 96%);
+  padding: 1rem;
+}
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.8rem;
+}
+.markdown-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+.markdown-content th {
+  background: hsl(var(--muted));
+  font-weight: 700;
+}

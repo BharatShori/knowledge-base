@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  topics      Topic[]
+}
+
+model Topic {
+  id             String         @id @default(cuid())
+  title          String
+  slug           String         @unique
+  summary        String?
+  content        String?
+  categoryId     String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  category       Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  tags           TopicTag[]
+  sources        Source[]
+  relatedFrom    TopicRelation[] @relation("relatedFrom")
+  relatedTo      TopicRelation[] @relation("relatedTo")
+
+  @@index([categoryId])
+  @@index([title])
+}
+
+model Tag {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  createdAt DateTime   @default(now())
+  topics    TopicTag[]
+}
+
+model TopicTag {
+  topicId String
+  tagId   String
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([topicId, tagId])
+  @@index([tagId])
+}
+
+model TopicRelation {
+  fromTopicId String
+  toTopicId   String
+  fromTopic   Topic  @relation("relatedFrom", fields: [fromTopicId], references: [id], onDelete: Cascade)
+  toTopic     Topic  @relation("relatedTo", fields: [toTopicId], references: [id], onDelete: Cascade)
+
+  @@id([fromTopicId, toTopicId])
+  @@index([toTopicId])
+}
+
+model Source {
+  id        String   @id @default(cuid())
+  topicId   String
+  title     String
+  url       String
+  createdAt DateTime @default(now())
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId])
+}

@@ -542,6 +542,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [categoryError, setCategoryError] = useState("");
+  const [topicError, setTopicError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [bgTheme, setBgTheme] = useState(BG_THEME_DEFAULT);
@@ -673,7 +674,10 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
     if (!selectedTopic) return;
     startTransition(async () => {
       const result = await deleteTopic(selectedTopic.id);
-      if (!result.error) {
+      if (result.error) {
+        setTopicError(result.error);
+      } else {
+        setTopicError("");
         setSelectedTopicId(null);
         setDialog(null);
         window.location.reload();
@@ -1372,14 +1376,38 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
         </DialogShell>
       )}
       {dialog === "delete-topic" && selectedTopic && (
-        <DialogShell title="Delete topic?" onClose={() => setDialog(null)}>
-          <p className="text-sm leading-6 text-muted-foreground">
-            This will permanently remove{" "}
-            <strong className="text-foreground">{selectedTopic.title}</strong>{" "}
-            from your knowledge base.
-          </p>
+        <DialogShell
+          title="Delete topic?"
+          onClose={() => {
+            setTopicError("");
+            setDialog(null);
+          }}
+        >
+          <div className="space-y-3">
+            {topicError && (
+              <p
+                role="alert"
+                className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+              >
+                {topicError}
+              </p>
+            )}
+            <p className="text-sm leading-6 text-muted-foreground">
+              This will permanently remove{" "}
+              <strong className="text-foreground">
+                {selectedTopic.title}
+              </strong>{" "}
+              from your knowledge base.
+            </p>
+          </div>
           <div className="mt-6 flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setDialog(null)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTopicError("");
+                setDialog(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={removeTopic} disabled={isPending}>

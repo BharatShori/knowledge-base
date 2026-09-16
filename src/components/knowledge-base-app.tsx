@@ -784,8 +784,16 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                   title={category.name}
                 >
                   <span className="flex items-center gap-3">
-                    <FolderKanban size={15} />
-                    {!sidebarCollapsed && category.name}
+                    {sidebarCollapsed ? (
+                      <span className="text-center text-[11px] font-bold uppercase leading-tight">
+                        {category.name.slice(0, 5).trim()}
+                      </span>
+                    ) : (
+                      <>
+                        <FolderKanban size={15} />
+                        {category.name}
+                      </>
+                    )}
                   </span>
                   {!sidebarCollapsed && (
                     <span className="text-xs opacity-60">

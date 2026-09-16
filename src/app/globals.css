@@ -11,6 +11,78 @@
   --accent-foreground: 0 0% 100%;
   --muted: 42 23% 91%;
   --muted-foreground: 205 12% 45%;
+
+  --font-body: var(--font-dm-sans);
+  --font-display: var(--font-fraunces);
+}
+
+/* Background themes, chosen via the Appearance picker (data-bg-theme on <html>). */
+:root[data-bg-theme="white"] {
+  --background: 0 0% 100%;
+  --foreground: 222 20% 15%;
+  --surface: 0 0% 100%;
+  --border: 220 15% 90%;
+  --muted: 220 20% 96%;
+  --muted-foreground: 220 10% 45%;
+}
+:root[data-bg-theme="gray"] {
+  --background: 220 14% 93%;
+  --foreground: 222 20% 16%;
+  --surface: 0 0% 100%;
+  --border: 220 13% 85%;
+  --muted: 220 14% 89%;
+  --muted-foreground: 220 9% 42%;
+}
+:root[data-bg-theme="sepia"] {
+  --background: 39 42% 91%;
+  --foreground: 30 25% 20%;
+  --surface: 40 45% 96%;
+  --border: 35 30% 80%;
+  --muted: 38 35% 86%;
+  --muted-foreground: 30 15% 40%;
+}
+:root[data-bg-theme="mint"] {
+  --background: 168 30% 93%;
+  --foreground: 200 25% 16%;
+  --surface: 0 0% 100%;
+  --border: 165 20% 82%;
+  --muted: 168 25% 88%;
+  --muted-foreground: 190 12% 42%;
+}
+
+/* Font pairings, chosen via the Appearance picker (data-font on <html>). */
+:root[data-font="inter"] {
+  --font-body: var(--font-inter);
+  --font-display: var(--font-inter);
+}
+:root[data-font="serif"] {
+  --font-body: var(--font-source-serif);
+  --font-display: var(--font-source-serif);
+}
+:root[data-font="legible"] {
+  --font-body: var(--font-atkinson);
+  --font-display: var(--font-atkinson);
+}
+:root[data-font="mono"] {
+  --font-body: var(--font-jetbrains-mono);
+  --font-display: var(--font-jetbrains-mono);
+}
+
+/* Font sizes, chosen via the Appearance picker (data-font-size on <html>). */
+:root[data-font-size="sm"] {
+  font-size: 14px;
+}
+:root[data-font-size="md"] {
+  font-size: 16px;
+}
+:root[data-font-size="lg"] {
+  font-size: 18px;
+}
+:root[data-font-size="xl"] {
+  font-size: 20px;
+}
+:root[data-font-size="xxl"] {
+  font-size: 22px;
 }
 
 * {

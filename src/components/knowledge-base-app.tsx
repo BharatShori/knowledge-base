@@ -10,6 +10,8 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
+  ArrowLeft,
+  ArrowRight,
   Edit3,
   FolderKanban,
   Hash,
@@ -19,6 +21,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings,
   Sparkles,
   Trash2,
   Upload,
@@ -44,7 +47,36 @@ type Dialog =
   | "manage"
   | "import"
   | "delete-topic"
+  | "appearance"
   | null;
+
+const BG_THEMES = [
+  { value: "cream", label: "Cream", swatch: "#f4ecd8" },
+  { value: "white", label: "Pure White", swatch: "#ffffff" },
+  { value: "gray", label: "Soft Gray", swatch: "#e5e8eb" },
+  { value: "sepia", label: "Sepia", swatch: "#ead9b4" },
+  { value: "mint", label: "Mint", swatch: "#d7ece3" },
+] as const;
+
+const FONT_CHOICES = [
+  { value: "sans", label: "Sans", family: "var(--font-dm-sans)" },
+  { value: "inter", label: "Inter", family: "var(--font-inter)" },
+  { value: "serif", label: "Serif", family: "var(--font-source-serif)" },
+  { value: "legible", label: "Legible", family: "var(--font-atkinson)" },
+  { value: "mono", label: "Mono", family: "var(--font-jetbrains-mono)" },
+] as const;
+
+const FONT_SIZES = [
+  { value: "sm", label: "Small", px: 14 },
+  { value: "md", label: "Default", px: 16 },
+  { value: "lg", label: "Medium", px: 18 },
+  { value: "xl", label: "Large", px: 20 },
+  { value: "xxl", label: "Extra Large", px: 22 },
+] as const;
+
+const BG_THEME_DEFAULT = "cream";
+const FONT_DEFAULT = "sans";
+const FONT_SIZE_DEFAULT = "md";
 
 function DialogShell({
   title,
@@ -482,6 +514,9 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
   const [categoryError, setCategoryError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [bgTheme, setBgTheme] = useState(BG_THEME_DEFAULT);
+  const [fontChoice, setFontChoice] = useState(FONT_DEFAULT);
+  const [fontSize, setFontSize] = useState(FONT_SIZE_DEFAULT);
   const [overviewCollapsed, setOverviewCollapsed] = useState(
     data.topics.length > 0,
   );
@@ -500,7 +535,30 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
     setSidebarCollapsed(
       window.localStorage.getItem("qe-sidebar-collapsed") === "true",
     );
+    setBgTheme(
+      window.localStorage.getItem("qe-bg-theme") ?? BG_THEME_DEFAULT,
+    );
+    setFontChoice(window.localStorage.getItem("qe-font") ?? FONT_DEFAULT);
+    setFontSize(
+      window.localStorage.getItem("qe-font-size") ?? FONT_SIZE_DEFAULT,
+    );
   }, []);
+
+  function applyBgTheme(value: string) {
+    setBgTheme(value);
+    window.localStorage.setItem("qe-bg-theme", value);
+    document.documentElement.setAttribute("data-bg-theme", value);
+  }
+  function applyFontChoice(value: string) {
+    setFontChoice(value);
+    window.localStorage.setItem("qe-font", value);
+    document.documentElement.setAttribute("data-font", value);
+  }
+  function applyFontSize(value: string) {
+    setFontSize(value);
+    window.localStorage.setItem("qe-font-size", value);
+    document.documentElement.setAttribute("data-font-size", value);
+  }
 
   function toggleSidebar() {
     setSidebarCollapsed((current) => {
@@ -525,6 +583,27 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
     setSelectedTopicId(topicId);
     setOverviewCollapsed(true);
   }
+
+  function selectCategory(categoryId: string) {
+    const firstTopic = data.topics.find(
+      (topic) => topic.categoryId === categoryId,
+    );
+    setCategoryFilter(categoryId);
+    setTagFilter(null);
+    setSearch("");
+    setSelectedTopicId(firstTopic?.id ?? null);
+    setOverviewCollapsed(true);
+  }
+
+  const selectedTopicIndex = selectedTopic
+    ? visibleTopics.findIndex((topic) => topic.id === selectedTopic.id)
+    : -1;
+  const previousTopic =
+    selectedTopicIndex > 0 ? visibleTopics[selectedTopicIndex - 1] : undefined;
+  const nextTopic =
+    selectedTopicIndex >= 0 && selectedTopicIndex < visibleTopics.length - 1
+      ? visibleTopics[selectedTopicIndex + 1]
+      : undefined;
 
   function openEditTopic() {
     if (selectedTopic) {
@@ -584,7 +663,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             </div>
           )}
           <button
-            className="ml-auto hidden rounded-md p-2 text-muted-foreground hover:bg-white hover:text-foreground lg:block"
+            className="ml-auto hidden rounded-md p-2 text-muted-foreground hover:bg-surface hover:text-foreground lg:block"
             onClick={toggleSidebar}
             aria-label={
               sidebarCollapsed ? "Expand navigation" : "Collapse navigation"
@@ -603,7 +682,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
         <div className={`${sidebarCollapsed ? "space-y-2" : "space-y-2"} mb-6`}>
           {sidebarCollapsed ? (
             <button
-              className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground hover:bg-white hover:text-foreground"
+              className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground hover:bg-surface hover:text-foreground"
               onClick={() => {
                 setSidebarCollapsed(false);
                 setTimeout(
@@ -683,7 +762,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 setSearch("");
                 setOverviewCollapsed(false);
               }}
-              className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold ${sidebarCollapsed ? "justify-center px-0" : ""} ${!categoryFilter && !tagFilter && !search ? "bg-white text-accent shadow-sm" : "text-muted-foreground hover:bg-white"}`}
+              className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold ${sidebarCollapsed ? "justify-center px-0" : ""} ${!categoryFilter && !tagFilter && !search ? "bg-surface text-accent shadow-sm" : "text-muted-foreground hover:bg-surface"}`}
               title="Dashboard"
             >
               <Sparkles size={16} />
@@ -700,11 +779,8 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               {data.categories.map((category) => (
                 <button
                   key={category.id}
-                  onClick={() => {
-                    setCategoryFilter(category.id);
-                    setTagFilter(null);
-                  }}
-                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm ${sidebarCollapsed ? "justify-center px-0" : ""} ${categoryFilter === category.id ? "bg-white font-semibold text-accent" : "text-muted-foreground hover:bg-white hover:text-foreground"}`}
+                  onClick={() => selectCategory(category.id)}
+                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm ${sidebarCollapsed ? "justify-center px-0" : ""} ${categoryFilter === category.id ? "bg-surface font-semibold text-accent" : "text-muted-foreground hover:bg-surface hover:text-foreground"}`}
                   title={category.name}
                 >
                   <span className="flex items-center gap-3">
@@ -731,7 +807,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 <button
                   key={topic.id}
                   onClick={() => selectTopic(topic.id)}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground hover:bg-white hover:text-foreground ${sidebarCollapsed ? "justify-center px-0" : ""}`}
+                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground hover:bg-surface hover:text-foreground ${sidebarCollapsed ? "justify-center px-0" : ""}`}
                   title={topic.title}
                 >
                   <Hash size={15} />
@@ -772,6 +848,14 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 Filtered view
               </span>
             )}
+            <button
+              className="rounded-md p-2 hover:bg-muted hover:text-foreground"
+              onClick={() => setDialog("appearance")}
+              aria-label="Appearance settings"
+              title="Appearance settings"
+            >
+              <Settings size={17} />
+            </button>
             <button
               className="hidden rounded-md p-2 hover:bg-muted hover:text-foreground lg:block"
               onClick={toggleSidebar}
@@ -910,16 +994,6 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                           {topic.summary}
                         </p>
                       )}
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {topic.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
                     </button>
                   ))}
                   {visibleTopics.length === 0 && (
@@ -948,6 +1022,33 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               <CardContent>
                 {selectedTopic ? (
                   <article>
+                    <div className="mb-5 flex items-center justify-between gap-3 border-b border-border pb-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          previousTopic && selectTopic(previousTopic.id)
+                        }
+                        disabled={!previousTopic}
+                        aria-label="Previous topic"
+                      >
+                        <ArrowLeft size={15} />
+                        <span className="hidden sm:inline">Back</span>
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {selectedTopicIndex + 1} of {visibleTopics.length}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => nextTopic && selectTopic(nextTopic.id)}
+                        disabled={!nextTopic}
+                        aria-label="Next topic"
+                      >
+                        <span className="hidden sm:inline">Next</span>
+                        <ArrowRight size={15} />
+                      </Button>
+                    </div>
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">
@@ -977,7 +1078,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                       </div>
                     </div>
                     {selectedTopic.summary && (
-                      <p className="mt-5 text-base leading-7 text-muted-foreground">
+                      <p className="mt-5 text-lg leading-8 text-muted-foreground">
                         {selectedTopic.summary}
                       </p>
                     )}
@@ -999,7 +1100,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                       Detailed notes
                     </h3>
                     {selectedTopic.content ? (
-                      <div className="markdown-content mt-4 max-w-none text-sm leading-7 text-foreground">
+                      <div className="markdown-content mt-4 max-w-none text-base leading-8 text-foreground">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {selectedTopic.content}
                         </ReactMarkdown>
@@ -1215,6 +1316,97 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             <Button onClick={removeTopic} disabled={isPending}>
               {isPending ? "Deleting..." : "Confirm delete"}
             </Button>
+          </div>
+        </DialogShell>
+      )}
+      {dialog === "appearance" && (
+        <DialogShell title="Appearance" onClose={() => setDialog(null)}>
+          <div className="space-y-6">
+            <fieldset>
+              <legend className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                Background
+              </legend>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {BG_THEMES.map((theme) => (
+                  <label
+                    key={theme.value}
+                    className="flex cursor-pointer flex-col items-center gap-1.5"
+                  >
+                    <input
+                      type="radio"
+                      name="bg-theme"
+                      value={theme.value}
+                      checked={bgTheme === theme.value}
+                      onChange={() => applyBgTheme(theme.value)}
+                      className="sr-only"
+                    />
+                    <span
+                      className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ${bgTheme === theme.value ? "border-accent" : "border-border"}`}
+                      style={{ background: theme.swatch }}
+                    >
+                      {bgTheme === theme.value && (
+                        <Check size={16} className="text-accent" />
+                      )}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {theme.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                Font
+              </legend>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {FONT_CHOICES.map((font) => (
+                  <label
+                    key={font.value}
+                    className={`flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm ${fontChoice === font.value ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="font-choice"
+                      value={font.value}
+                      checked={fontChoice === font.value}
+                      onChange={() => applyFontChoice(font.value)}
+                      className="sr-only"
+                    />
+                    <span style={{ fontFamily: font.family }}>
+                      {font.label}
+                    </span>
+                    {fontChoice === font.value && (
+                      <Check size={14} className="shrink-0 text-accent" />
+                    )}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">
+                Font size
+              </legend>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {FONT_SIZES.map((size) => (
+                  <label
+                    key={size.value}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-2 text-sm ${fontSize === size.value ? "border-accent bg-accent/5 text-accent" : "border-border text-muted-foreground hover:border-accent/50"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="font-size"
+                      value={size.value}
+                      checked={fontSize === size.value}
+                      onChange={() => applyFontSize(size.value)}
+                      className="sr-only"
+                    />
+                    <span style={{ fontSize: size.px }}>Aa</span>
+                    <span>{size.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           </div>
         </DialogShell>
       )}

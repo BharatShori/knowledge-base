@@ -1072,14 +1072,20 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                   {visibleTopics.length === 0 && (
                     <div className="rounded-md border border-dashed border-border px-5 py-10 text-center">
                       <p className="font-semibold">
-                        {search || tagFilter || categoryFilter
+                        {search
                           ? `No topics found for "${search}".`
-                          : "No topics yet."}
+                          : tagFilter
+                            ? `No topics tagged "${tagFilter}".`
+                            : categoryFilter
+                              ? "No topics in this category."
+                              : "No topics yet."}
                       </p>
                       <p className="mt-2 text-sm text-muted-foreground">
-                        {search || tagFilter || categoryFilter
+                        {search
                           ? "Try another search term."
-                          : "Add your first knowledge topic."}
+                          : tagFilter || categoryFilter
+                            ? "Try a different filter, or clear it."
+                            : "Add your first knowledge topic."}
                       </p>
                       {!search && !tagFilter && !categoryFilter && (
                         <Button className="mt-5" onClick={openNewTopic}>
@@ -1334,45 +1340,54 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             >
               <Plus size={16} /> Add category
             </Button>
-            <div className="divide-y divide-border rounded-md border border-border">
-              {data.categories.map((category) => (
-                <div
-                  key={category.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
-                >
-                  <div>
-                    <p className="font-semibold">{category.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {category.topicCount}{" "}
-                      {category.topicCount === 1 ? "topic" : "topics"}
-                    </p>
+            {data.categories.length === 0 ? (
+              <div className="rounded-md border border-dashed border-border px-5 py-10 text-center">
+                <p className="font-semibold">No categories yet.</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Add a category to start organising your topics.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border rounded-md border border-border">
+                {data.categories.map((category) => (
+                  <div
+                    key={category.id}
+                    className="flex items-center justify-between gap-3 px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-semibold">{category.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {category.topicCount}{" "}
+                        {category.topicCount === 1 ? "topic" : "topics"}
+                      </p>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Edit ${category.name}`}
+                        onClick={() => {
+                          setEditingCategory(category);
+                          setDialog("category");
+                        }}
+                      >
+                        <Edit3 size={15} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Delete ${category.name}`}
+                        onClick={() => removeCategory(category)}
+                        disabled={isPending}
+                        aria-busy={isPending}
+                      >
+                        <Trash2 size={15} />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Edit ${category.name}`}
-                      onClick={() => {
-                        setEditingCategory(category);
-                        setDialog("category");
-                      }}
-                    >
-                      <Edit3 size={15} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`Delete ${category.name}`}
-                      onClick={() => removeCategory(category)}
-                      disabled={isPending}
-                      aria-busy={isPending}
-                    >
-                      <Trash2 size={15} />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </DialogShell>
       )}

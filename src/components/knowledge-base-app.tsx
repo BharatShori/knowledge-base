@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -87,11 +87,31 @@ function DialogShell({
   children: React.ReactNode;
   onClose: () => void;
 }) {
+  const panelRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || !panelRef.current) return;
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener("keydown", handleKeyDown);
+    panelRef.current?.focus();
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
@@ -102,7 +122,9 @@ function DialogShell({
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
     >
       <section
-        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-border bg-surface shadow-2xl"
+        ref={panelRef}
+        tabIndex={-1}
+        className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-border bg-surface shadow-2xl outline-none"
         role="dialog"
         aria-modal="true"
         aria-labelledby="dialog-title"
@@ -1021,6 +1043,9 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                     <button
                       key={topic.id}
                       onClick={() => selectTopic(topic.id)}
+                      aria-current={
+                        topic.id === selectedTopicId ? "true" : undefined
+                      }
                       className={`w-full rounded-md border px-4 py-3 text-left transition ${topic.id === selectedTopicId ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"}`}
                     >
                       <div className="flex items-center justify-between gap-4">
@@ -1447,6 +1472,9 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                     />
                     <span style={{ fontSize: size.px }}>Aa</span>
                     <span>{size.label}</span>
+                    {fontSize === size.value && (
+                      <Check size={14} className="text-accent" />
+                    )}
                   </label>
                 ))}
               </div>

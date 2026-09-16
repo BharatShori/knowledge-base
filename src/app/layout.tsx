@@ -55,7 +55,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={appearanceFonts}>
+    <html lang="en" className={appearanceFonts} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: applyAppearanceScript }} />
       </head>

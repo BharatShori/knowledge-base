@@ -733,22 +733,6 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               </p>
             </div>
           )}
-          <button
-            className="ml-auto hidden rounded-md p-2 text-muted-foreground hover:bg-surface hover:text-foreground lg:block"
-            onClick={toggleSidebar}
-            aria-label={
-              sidebarCollapsed ? "Expand navigation" : "Collapse navigation"
-            }
-            title={
-              sidebarCollapsed ? "Expand navigation" : "Collapse navigation"
-            }
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen size={17} />
-            ) : (
-              <PanelLeftClose size={17} />
-            )}
-          </button>
         </div>
         <div className={`${sidebarCollapsed ? "space-y-2" : "space-y-2"} mb-6`}>
           {sidebarCollapsed ? (
@@ -900,13 +884,15 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
       <main className="min-w-0 flex-1">
         <header className="flex min-h-[58px] items-center justify-between gap-4 border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <button
-              className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden"
               onClick={() => setMobileSidebarOpen(true)}
               aria-label="Open navigation"
             >
               <Menu size={18} />
-            </button>
+            </Button>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-foreground">
                 {selectedTopic ? selectedTopic.title : "Knowledge base"}
@@ -927,16 +913,19 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 Filtered view
               </span>
             )}
-            <button
-              className="rounded-md p-2 hover:bg-muted hover:text-foreground"
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setDialog("appearance")}
               aria-label="Appearance settings"
               title="Appearance settings"
             >
               <Settings size={17} />
-            </button>
-            <button
-              className="hidden rounded-md p-2 hover:bg-muted hover:text-foreground lg:block"
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden lg:flex"
               onClick={toggleSidebar}
               aria-label={
                 sidebarCollapsed ? "Expand navigation" : "Collapse navigation"
@@ -950,7 +939,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               ) : (
                 <PanelLeftClose size={17} />
               )}
-            </button>
+            </Button>
           </div>
         </header>
         <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">

@@ -619,6 +619,15 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
     return () => document.removeEventListener("keydown", handleGlobalKeyDown);
   }, [dialog]);
 
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMobileSidebarOpen(false);
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [mobileSidebarOpen]);
+
   function toggleSidebar() {
     setSidebarCollapsed((current) => {
       const next = !current;

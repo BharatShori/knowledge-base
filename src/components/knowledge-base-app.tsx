@@ -441,7 +441,7 @@ function ImportForm({
   onImported,
 }: {
   onClose: () => void;
-  onImported: () => void;
+  onImported: (firstTopicId: string | null) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [json, setJson] = useState("");
@@ -456,12 +456,13 @@ function ImportForm({
     formData.set("json", json);
     startTransition(async () => {
       const response = await importTopics(formData);
-      if (response.error) setError(response.error);
-      else {
+      if (!response.success) {
+        setError(response.error);
+      } else {
         setResult(
           `${response.importedCount} topic${response.importedCount === 1 ? "" : "s"} imported.`,
         );
-        onImported();
+        onImported(response.firstTopicId);
       }
     });
   }
@@ -1294,7 +1295,10 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
         >
           <ImportForm
             onClose={() => setDialog(null)}
-            onImported={() => router.refresh()}
+            onImported={(firstTopicId) => {
+              if (firstTopicId) setSelectedTopicId(firstTopicId);
+              router.refresh();
+            }}
           />
         </DialogShell>
       )}

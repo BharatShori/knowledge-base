@@ -9,26 +9,33 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Import failed.";
 }
 
-export async function importTopics(formData: FormData) {
+type ImportResult =
+  | { success: false; error: string }
+  | { success: true; importedCount: number; firstTopicId: string | null };
+
+export async function importTopics(
+  formData: FormData,
+): Promise<ImportResult> {
   const raw = formData.get("json");
   if (typeof raw !== "string" || !raw.trim()) {
-    return { error: "Paste JSON before importing." };
+    return { success: false, error: "Paste JSON before importing." };
   }
   if (raw.length > 1_000_000) {
-    return { error: "Import JSON must be smaller than 1 MB." };
+    return { success: false, error: "Import JSON must be smaller than 1 MB." };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return { error: "Import JSON is not valid JSON." };
+    return { success: false, error: "Import JSON is not valid JSON." };
   }
 
   const payload = importPayloadSchema.safeParse(parsed);
   if (!payload.success) {
     const issue = payload.error.issues[0];
     return {
+      success: false,
       error: issue
         ? `${issue.path.join(".") || "Import"}: ${issue.message}`
         : "Import JSON is invalid.",
@@ -36,7 +43,7 @@ export async function importTopics(formData: FormData) {
   }
 
   try {
-    const importedCount = await prisma.$transaction(async (tx) => {
+    const importResult = await prisma.$transaction(async (tx) => {
       const existingTopics = await tx.topic.findMany({
         select: { id: true, title: true },
       });
@@ -143,12 +150,19 @@ export async function importTopics(formData: FormData) {
         }
       }
 
-      return importedIds.length;
+      return {
+        count: importedIds.length,
+        firstTopicId: importedIds[0]?.id ?? null,
+      };
     });
 
     revalidatePath("/");
-    return { success: true, importedCount };
+    return {
+      success: true,
+      importedCount: importResult.count,
+      firstTopicId: importResult.firstTopicId,
+    };
   } catch (error) {
-    return { error: errorMessage(error) };
+    return { success: false, error: errorMessage(error) };
   }
 }

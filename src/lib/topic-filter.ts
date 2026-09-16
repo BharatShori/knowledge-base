@@ -7,6 +7,14 @@ export type FilterableTopic = {
   tags: string[];
 };
 
+// Match tiers for search result ordering: title matches rank above
+// category matches, which rank above summary/content/tag matches.
+function matchRank(topic: FilterableTopic, query: string): number {
+  if (topic.title.toLowerCase().includes(query)) return 0;
+  if (topic.categoryName.toLowerCase().includes(query)) return 1;
+  return 2;
+}
+
 export function filterTopics<T extends FilterableTopic>(
   topics: T[],
   search: string,
@@ -14,7 +22,7 @@ export function filterTopics<T extends FilterableTopic>(
   tag: string | null,
 ) {
   const query = search.trim().toLowerCase();
-  return topics.filter((topic) => {
+  const filtered = topics.filter((topic) => {
     const searchable = [
       topic.title,
       topic.summary ?? "",
@@ -30,4 +38,13 @@ export function filterTopics<T extends FilterableTopic>(
       (!tag || topic.tags.includes(tag))
     );
   });
+
+  if (!query) return filtered;
+
+  return filtered
+    .map((topic) => ({ topic, rank: matchRank(topic, query) }))
+    .sort(
+      (a, b) => a.rank - b.rank || a.topic.title.localeCompare(b.topic.title),
+    )
+    .map((entry) => entry.topic);
 }

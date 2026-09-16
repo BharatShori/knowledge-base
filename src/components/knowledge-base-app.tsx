@@ -87,6 +87,14 @@ function DialogShell({
   children: React.ReactNode;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/25 p-4"
@@ -559,6 +567,34 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
     window.localStorage.setItem("qe-font-size", value);
     document.documentElement.setAttribute("data-font-size", value);
   }
+
+  useEffect(() => {
+    function handleGlobalKeyDown(event: KeyboardEvent) {
+      if (dialog) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement;
+      const isTyping =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.isContentEditable;
+      if (isTyping) return;
+      if (event.key === "/") {
+        event.preventDefault();
+        setSidebarCollapsed(false);
+        setTimeout(
+          () => document.getElementById("topic-search")?.focus(),
+          0,
+        );
+      } else if (event.key === "n") {
+        event.preventDefault();
+        setEditingTopic(undefined);
+        setDialog("topic");
+      }
+    }
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [dialog]);
 
   function toggleSidebar() {
     setSidebarCollapsed((current) => {

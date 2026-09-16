@@ -360,7 +360,7 @@ function TopicForm({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending} aria-busy={isPending}>
           {isPending ? (
             "Saving..."
           ) : (
@@ -422,7 +422,7 @@ function CategoryForm({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending} aria-busy={isPending}>
           {isPending ? (
             "Saving..."
           ) : (
@@ -514,7 +514,7 @@ function ImportForm({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending}>
+        <Button type="submit" disabled={isPending} aria-busy={isPending}>
           {isPending ? (
             "Importing..."
           ) : (
@@ -1365,6 +1365,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                       aria-label={`Delete ${category.name}`}
                       onClick={() => removeCategory(category)}
                       disabled={isPending}
+                      aria-busy={isPending}
                     >
                       <Trash2 size={15} />
                     </Button>
@@ -1410,7 +1411,11 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             >
               Cancel
             </Button>
-            <Button onClick={removeTopic} disabled={isPending}>
+            <Button
+              onClick={removeTopic}
+              disabled={isPending}
+              aria-busy={isPending}
+            >
               {isPending ? "Deleting..." : "Confirm delete"}
             </Button>
           </div>

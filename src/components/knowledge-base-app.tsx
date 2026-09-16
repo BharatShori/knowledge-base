@@ -644,7 +644,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex min-h-screen shrink-0 flex-col border-r border-border bg-[#f7f4ec] py-5 transition-[width,padding] duration-200 lg:sticky lg:top-0 lg:h-screen ${mobileSidebarOpen ? "flex" : "hidden lg:flex"} ${sidebarCollapsed ? "w-[76px] px-3" : "w-[280px] px-5"}`}
+        className={`fixed inset-y-0 left-0 z-40 flex min-h-screen shrink-0 flex-col border-r border-border bg-[#f7f4ec] py-5 transition-[width,padding] duration-200 lg:sticky lg:top-0 lg:h-screen ${mobileSidebarOpen ? "flex" : "hidden lg:flex"} ${sidebarCollapsed ? "w-[92px] px-2" : "w-[280px] px-5"}`}
       >
         <div
           className={`mb-6 flex items-center gap-3 ${sidebarCollapsed ? "justify-center" : "px-2"}`}
@@ -762,7 +762,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 setSearch("");
                 setOverviewCollapsed(false);
               }}
-              className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold ${sidebarCollapsed ? "justify-center px-0" : ""} ${!categoryFilter && !tagFilter && !search ? "bg-surface text-accent shadow-sm" : "text-muted-foreground hover:bg-surface"}`}
+              className={`flex w-full items-center gap-3 rounded-md py-2.5 text-left text-sm font-semibold ${sidebarCollapsed ? "justify-center px-1" : "px-3"} ${!categoryFilter && !tagFilter && !search ? "bg-surface text-accent shadow-sm" : "text-muted-foreground hover:bg-surface"}`}
               title="Dashboard"
             >
               <Sparkles size={16} />
@@ -780,7 +780,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 <button
                   key={category.id}
                   onClick={() => selectCategory(category.id)}
-                  className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm ${sidebarCollapsed ? "justify-center px-0" : ""} ${categoryFilter === category.id ? "bg-surface font-semibold text-accent" : "text-muted-foreground hover:bg-surface hover:text-foreground"}`}
+                  className={`flex w-full items-center justify-between rounded-md py-2 text-left text-sm ${sidebarCollapsed ? "justify-center px-1" : "px-3"} ${categoryFilter === category.id ? "bg-surface font-semibold text-accent" : "text-muted-foreground hover:bg-surface hover:text-foreground"}`}
                   title={category.name}
                 >
                   <span className="flex items-center gap-3">
@@ -815,7 +815,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 <button
                   key={topic.id}
                   onClick={() => selectTopic(topic.id)}
-                  className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-muted-foreground hover:bg-surface hover:text-foreground ${sidebarCollapsed ? "justify-center px-0" : ""}`}
+                  className={`flex w-full items-center gap-3 rounded-md py-2 text-left text-sm text-muted-foreground hover:bg-surface hover:text-foreground ${sidebarCollapsed ? "justify-center px-1" : "px-3"}`}
                   title={topic.title}
                 >
                   <Hash size={15} />

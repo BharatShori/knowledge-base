@@ -15,6 +15,7 @@ import {
   Copy,
   Edit3,
   FolderKanban,
+  GraduationCap,
   Hash,
   Menu,
   PanelLeftClose,
@@ -35,6 +36,12 @@ import {
 } from "@/actions/categories";
 import { createTopic, deleteTopic, updateTopic } from "@/actions/topics";
 import { importTopics } from "@/actions/import";
+import {
+  completeQuiz,
+  generateQuiz,
+  getQuizHistory,
+  submitAnswer,
+} from "@/actions/quiz";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DashboardData } from "@/lib/data";
@@ -43,6 +50,17 @@ import {
   buildTopicClipboardHtml,
   buildTopicClipboardText,
 } from "@/lib/topic-clipboard";
+import {
+  DEFAULT_DIFFICULTY,
+  DEFAULT_QUESTION_COUNT,
+  DIFFICULTY_OPTIONS,
+  QUESTION_COUNT_OPTIONS,
+  type CompleteQuizResult,
+  type GenerateQuizResult,
+  type QuizDifficulty,
+  type QuizHistoryEntry,
+  type SubmitAnswerResult,
+} from "@/lib/quiz/types";
 
 type Topic = DashboardData["topics"][number];
 type Category = DashboardData["categories"][number];
@@ -53,6 +71,7 @@ type Dialog =
   | "import"
   | "delete-topic"
   | "appearance"
+  | "quiz"
   | null;
 
 const BG_THEMES = [
@@ -597,6 +616,385 @@ Detailed notes go here as Markdown content.`;
       </div>
     </form>
   );
+}
+
+type QuizStep = "config" | "question" | "answered" | "results";
+type GenerateQuizSuccess = Extract<GenerateQuizResult, { success: true }>;
+type SubmitAnswerSuccess = Extract<SubmitAnswerResult, { success: true }>;
+type CompleteQuizSuccess = Extract<CompleteQuizResult, { success: true }>;
+
+function QuizFlow({
+  topicId,
+  onClose,
+}: {
+  topicId: string;
+  onClose: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [step, setStep] = useState<QuizStep>("config");
+  const [questionCount, setQuestionCount] = useState<number>(
+    DEFAULT_QUESTION_COUNT,
+  );
+  const [difficulty, setDifficulty] = useState<QuizDifficulty>(
+    DEFAULT_DIFFICULTY,
+  );
+  const [error, setError] = useState("");
+  const [history, setHistory] = useState<QuizHistoryEntry[]>([]);
+  const [quizSessionId, setQuizSessionId] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<
+    GenerateQuizSuccess["questions"]
+  >([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [answerResult, setAnswerResult] = useState<SubmitAnswerSuccess | null>(
+    null,
+  );
+  const [results, setResults] = useState<CompleteQuizSuccess | null>(null);
+  const [showReview, setShowReview] = useState(false);
+
+  useEffect(() => {
+    getQuizHistory(topicId)
+      .then(setHistory)
+      .catch(() => {});
+  }, [topicId]);
+
+  const currentQuestion = questions[currentIndex];
+  const isLastQuestion = currentIndex === questions.length - 1;
+
+  function startQuiz() {
+    setError("");
+    startTransition(async () => {
+      const result = await generateQuiz(topicId, questionCount, difficulty);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setQuizSessionId(result.quizSessionId);
+      setQuestions(result.questions);
+      setCurrentIndex(0);
+      setSelectedOption(null);
+      setAnswerResult(null);
+      setStep("question");
+    });
+  }
+
+  function submitCurrentAnswer() {
+    if (!selectedOption || !currentQuestion) return;
+    setError("");
+    startTransition(async () => {
+      const result = await submitAnswer(currentQuestion.id, selectedOption);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setAnswerResult(result);
+      setStep("answered");
+    });
+  }
+
+  function goToNextQuestion() {
+    if (isLastQuestion) {
+      if (!quizSessionId) return;
+      setError("");
+      startTransition(async () => {
+        const result = await completeQuiz(quizSessionId);
+        if ("error" in result) {
+          setError(result.error);
+          return;
+        }
+        setResults(result);
+        setStep("results");
+      });
+      return;
+    }
+    setCurrentIndex((index) => index + 1);
+    setSelectedOption(null);
+    setAnswerResult(null);
+    setStep("question");
+  }
+
+  function retakeQuiz() {
+    setStep("config");
+    setQuizSessionId(null);
+    setQuestions([]);
+    setCurrentIndex(0);
+    setSelectedOption(null);
+    setAnswerResult(null);
+    setResults(null);
+    setShowReview(false);
+    setError("");
+    getQuizHistory(topicId)
+      .then(setHistory)
+      .catch(() => {});
+  }
+
+  if (step === "config") {
+    return (
+      <div className="space-y-5">
+        <div>
+          <p className="text-sm font-semibold">Number of Questions</p>
+          <div className="mt-2 flex gap-2">
+            {QUESTION_COUNT_OPTIONS.map((count) => (
+              <button
+                key={count}
+                type="button"
+                aria-pressed={questionCount === count}
+                onClick={() => setQuestionCount(count)}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold transition-colors ${
+                  questionCount === count
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-muted-foreground hover:border-accent"
+                }`}
+              >
+                {count}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-semibold">Difficulty</p>
+          <div className="mt-2 flex gap-2">
+            {DIFFICULTY_OPTIONS.map((level) => (
+              <button
+                key={level}
+                type="button"
+                aria-pressed={difficulty === level}
+                onClick={() => setDifficulty(level)}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold capitalize transition-colors ${
+                  difficulty === level
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-muted-foreground hover:border-accent"
+                }`}
+              >
+                {level}
+              </button>
+            ))}
+          </div>
+        </div>
+        {error && (
+          <p
+            role="alert"
+            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        {history.length > 0 && (
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+              Previous attempts
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+              {history.map((entry) => (
+                <li key={entry.id}>
+                  {entry.percentage}% · {entry.difficulty} ·{" "}
+                  {entry.questionCount} questions ·{" "}
+                  {new Date(entry.completedAt).toLocaleDateString()}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <div className="flex justify-end gap-3 border-t border-border pt-5">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={startQuiz}
+            disabled={isPending}
+            aria-busy={isPending}
+          >
+            {isPending ? "Generating your quiz..." : "Start Quiz"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "question" && currentQuestion) {
+    return (
+      <div className="space-y-5">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          Question {currentIndex + 1} of {questions.length}
+        </p>
+        <p className="text-lg font-semibold leading-7">
+          {currentQuestion.question}
+        </p>
+        <div className="space-y-2">
+          {currentQuestion.options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={selectedOption === option}
+              onClick={() => setSelectedOption(option)}
+              className={`block w-full rounded-md border px-4 py-3 text-left text-sm transition-colors ${
+                selectedOption === option
+                  ? "border-accent bg-accent/10"
+                  : "border-border hover:border-accent"
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        {error && (
+          <p
+            role="alert"
+            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end border-t border-border pt-5">
+          <Button
+            type="button"
+            onClick={submitCurrentAnswer}
+            disabled={!selectedOption || isPending}
+            aria-busy={isPending}
+          >
+            {isPending ? "Submitting..." : "Submit Answer"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "answered" && currentQuestion && answerResult) {
+    return (
+      <div className="space-y-5">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          Question {currentIndex + 1} of {questions.length}
+        </p>
+        <p className="text-lg font-semibold leading-7">
+          {currentQuestion.question}
+        </p>
+        <div className="space-y-2">
+          {currentQuestion.options.map((option) => {
+            const isCorrectOption = option === answerResult.correctAnswer;
+            const isSelected = option === selectedOption;
+            return (
+              <div
+                key={option}
+                className={`flex items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
+                  isCorrectOption
+                    ? "border-green-600 bg-green-50 text-green-800"
+                    : isSelected
+                      ? "border-red-600 bg-red-50 text-red-800"
+                      : "border-border"
+                }`}
+              >
+                <span>{option}</span>
+                {isCorrectOption && <Check size={16} />}
+                {!isCorrectOption && isSelected && <X size={16} />}
+              </div>
+            );
+          })}
+        </div>
+        <p
+          role="status"
+          className={`rounded-md px-3 py-2 text-sm font-semibold ${
+            answerResult.isCorrect
+              ? "bg-green-50 text-green-800"
+              : "bg-red-50 text-red-800"
+          }`}
+        >
+          {answerResult.isCorrect ? "Correct!" : "Not quite."}
+        </p>
+        <p className="text-sm leading-6 text-muted-foreground">
+          {answerResult.explanation}
+        </p>
+        {error && (
+          <p
+            role="alert"
+            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end border-t border-border pt-5">
+          <Button
+            type="button"
+            onClick={goToNextQuestion}
+            disabled={isPending}
+            aria-busy={isPending}
+          >
+            {isPending
+              ? "Loading..."
+              : isLastQuestion
+                ? "See Results"
+                : "Next Question"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "results" && results) {
+    const incorrectReview = results.review.filter((item) => !item.isCorrect);
+    return (
+      <div className="space-y-5">
+        <div className="text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            Quiz Complete
+          </p>
+          <p className="mt-2 font-[var(--font-display)] text-3xl font-semibold">
+            Score: {results.score} / {results.questionCount}
+          </p>
+          <p className="mt-1 text-lg text-muted-foreground">
+            {results.percentage}%
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
+          <span>{results.score} correct</span>
+          <span>{results.questionCount - results.score} incorrect</span>
+          <span className="capitalize">{results.difficulty}</span>
+        </div>
+        {incorrectReview.length > 0 && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowReview((value) => !value)}
+              className="text-sm font-semibold text-accent underline-offset-4 hover:underline"
+            >
+              {showReview ? "Hide" : "Review"} incorrect answers
+            </button>
+            {showReview && (
+              <ul className="mt-3 space-y-4">
+                {incorrectReview.map((item, index) => (
+                  <li
+                    key={index}
+                    className="rounded-md border border-border p-3 text-sm"
+                  >
+                    <p className="font-semibold">{item.question}</p>
+                    <p className="mt-1 text-red-700">
+                      Your answer: {item.selectedAnswer ?? "No answer"}
+                    </p>
+                    <p className="text-green-700">
+                      Correct answer: {item.correctAnswer}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {item.explanation}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        <div className="flex justify-end gap-3 border-t border-border pt-5">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Close
+          </Button>
+          <Button type="button" onClick={retakeQuiz}>
+            Retake Quiz
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
@@ -1230,7 +1628,14 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                           {selectedTopic.title}
                         </h2>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setDialog("quiz")}
+                        >
+                          <GraduationCap size={15} /> Quiz Me
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1407,6 +1812,18 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             topic={editingTopic}
             onClose={() => setDialog(null)}
             onSaved={refresh}
+          />
+        </DialogShell>
+      )}
+      {dialog === "quiz" && selectedTopic && (
+        <DialogShell
+          title={`Quiz Me: ${selectedTopic.title}`}
+          onClose={() => setDialog(null)}
+        >
+          <QuizFlow
+            key={selectedTopic.id}
+            topicId={selectedTopic.id}
+            onClose={() => setDialog(null)}
           />
         </DialogShell>
       )}

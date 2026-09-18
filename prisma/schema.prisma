@@ -30,6 +30,7 @@ model Topic {
   sources        Source[]
   relatedFrom    TopicRelation[] @relation("relatedFrom")
   relatedTo      TopicRelation[] @relation("relatedTo")
+  quizSessions   QuizSession[]
 
   @@index([categoryId])
   @@index([title])
@@ -71,4 +72,43 @@ model Source {
   topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
 
   @@index([topicId])
+}
+
+model QuizSession {
+  id            String         @id @default(cuid())
+  topicId       String
+  topic         Topic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  difficulty    String
+  questionCount Int
+  score         Int?
+  aiProvider    String
+  aiModel       String
+  startedAt     DateTime       @default(now())
+  completedAt   DateTime?
+  questions     QuizQuestion[]
+
+  @@index([topicId])
+}
+
+model QuizQuestion {
+  id            String       @id @default(cuid())
+  quizSessionId String
+  quizSession   QuizSession  @relation(fields: [quizSessionId], references: [id], onDelete: Cascade)
+  question      String
+  options       Json
+  correctAnswer String
+  explanation   String
+  displayOrder  Int
+  answer        QuizAnswer?
+
+  @@index([quizSessionId])
+}
+
+model QuizAnswer {
+  id             String       @id @default(cuid())
+  quizQuestionId String       @unique
+  quizQuestion   QuizQuestion @relation(fields: [quizQuestionId], references: [id], onDelete: Cascade)
+  selectedAnswer String
+  isCorrect      Boolean
+  answeredAt     DateTime     @default(now())
 }

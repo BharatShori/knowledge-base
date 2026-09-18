@@ -12,6 +12,7 @@ import {
   ChevronUp,
   ArrowLeft,
   ArrowRight,
+  Copy,
   Edit3,
   FolderKanban,
   Hash,
@@ -38,6 +39,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DashboardData } from "@/lib/data";
 import { filterTopics } from "@/lib/topic-filter";
+import {
+  buildTopicClipboardHtml,
+  buildTopicClipboardText,
+} from "@/lib/topic-clipboard";
 
 type Topic = DashboardData["topics"][number];
 type Category = DashboardData["categories"][number];
@@ -609,6 +614,8 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [categoryError, setCategoryError] = useState("");
   const [topicError, setTopicError] = useState("");
+  const [topicCopied, setTopicCopied] = useState(false);
+  const [copyError, setCopyError] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [bgTheme, setBgTheme] = useState(BG_THEME_DEFAULT);
@@ -743,6 +750,28 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
     if (selectedTopic) {
       setEditingTopic(selectedTopic);
       setDialog("topic");
+    }
+  }
+  async function copyTopic() {
+    if (!selectedTopic) return;
+    setCopyError("");
+    const html = buildTopicClipboardHtml(selectedTopic);
+    const text = buildTopicClipboardText(selectedTopic);
+    try {
+      if (typeof ClipboardItem !== "undefined") {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([html], { type: "text/html" }),
+            "text/plain": new Blob([text], { type: "text/plain" }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(text);
+      }
+      setTopicCopied(true);
+      setTimeout(() => setTopicCopied(false), 1500);
+    } catch {
+      setCopyError("Could not copy topic to clipboard.");
     }
   }
   function removeTopic() {
@@ -1205,6 +1234,26 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label={
+                            topicCopied
+                              ? "Copied topic to clipboard"
+                              : "Copy topic for sharing"
+                          }
+                          title="Copy for sharing"
+                          onClick={copyTopic}
+                        >
+                          {topicCopied ? (
+                            <Check size={16} />
+                          ) : (
+                            <Copy size={16} />
+                          )}
+                        </Button>
+                        <span role="status" aria-live="polite" className="sr-only">
+                          {topicCopied ? "Copied topic to clipboard." : ""}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           aria-label="Edit topic"
                           onClick={openEditTopic}
                         >
@@ -1220,6 +1269,14 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                         </Button>
                       </div>
                     </div>
+                    {copyError && (
+                      <p
+                        role="alert"
+                        className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+                      >
+                        {copyError}
+                      </p>
+                    )}
                     {selectedTopic.summary && (
                       <p className="mt-5 text-lg leading-8 text-muted-foreground">
                         {selectedTopic.summary}

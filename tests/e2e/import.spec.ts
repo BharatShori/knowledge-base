@@ -74,8 +74,8 @@ test("enriches an existing topic and ignores missing related topics", async ({
   await page.goto("/");
   await page.getByRole("button", { name: "Add topic" }).click();
   await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Category").selectOption({ label: "Automation" });
-  await page.getByLabel("Content").fill("Short note");
+  await page.getByLabel("Category", { exact: true }).selectOption({ label: "Automation" });
+  await page.getByLabel("Content", { exact: true }).fill("Short note");
   await page.getByRole("button", { name: /save topic/i }).click();
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await page.waitForLoadState("networkidle");

@@ -13,7 +13,7 @@ async function createTopic(
     .getByRole("button", { name: "Add topic" })
     .click();
   await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Category").selectOption({ label: "Automation" });
+  await page.getByLabel("Category", { exact: true }).selectOption({ label: "Automation" });
   await page.getByRole("button", { name: /save topic/i }).click();
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await page.waitForLoadState("networkidle");

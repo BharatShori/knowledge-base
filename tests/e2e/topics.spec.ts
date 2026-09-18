@@ -12,14 +12,14 @@ test("creates, views, edits, and deletes a topic", async ({ page }) => {
   await page.getByRole("button", { name: "Add topic" }).click();
   const topicTitle = `E2E Playwright ${runId}`;
   await page.getByLabel("Title").fill(topicTitle);
-  await page.getByLabel("Category").selectOption({ label: "Automation" });
+  await page.getByLabel("Category", { exact: true }).selectOption({ label: "Automation" });
   await page
-    .getByLabel("Summary")
+    .getByLabel("Summary", { exact: true })
     .fill("Browser automation for reliable end-to-end tests.");
   await page
-    .getByLabel("Content")
+    .getByLabel("Content", { exact: true })
     .fill("## Key concepts\n\n- Browser\n- Locator\n\n**Reliable tests**");
-  await page.getByLabel("Tags").fill(`${e2eTag}, ${typescriptTag}`);
+  await page.getByLabel("Tags", { exact: true }).fill(`${e2eTag}, ${typescriptTag}`);
   await page.getByRole("button", { name: /save topic/i }).click();
   await expect(page.getByRole("heading", { name: topicTitle })).toBeVisible();
   await expect(
@@ -64,9 +64,9 @@ test("copies a topic as rich text for sharing", async ({ page, context }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Add topic" }).click();
   await page.getByLabel("Title").fill(topicTitle);
-  await page.getByLabel("Category").selectOption({ label: "Automation" });
-  await page.getByLabel("Summary").fill("Summary for copy test.");
-  await page.getByLabel("Content").fill("## Notes\n\n- One\n- Two");
+  await page.getByLabel("Category", { exact: true }).selectOption({ label: "Automation" });
+  await page.getByLabel("Summary", { exact: true }).fill("Summary for copy test.");
+  await page.getByLabel("Content", { exact: true }).fill("## Notes\n\n- One\n- Two");
   await page.getByRole("button", { name: /save topic/i }).click();
   await expect(page.getByRole("heading", { name: topicTitle })).toBeVisible();
   await page.waitForLoadState("networkidle");

@@ -27,6 +27,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  Wand2,
   X,
 } from "lucide-react";
 import {
@@ -42,6 +43,10 @@ import {
   getQuizHistory,
   submitAnswer,
 } from "@/actions/quiz";
+import {
+  generateTopicBatch,
+  saveGeneratedTopics,
+} from "@/actions/topic-generator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DashboardData } from "@/lib/data";
@@ -61,6 +66,7 @@ import {
   type QuizHistoryEntry,
   type SubmitAnswerResult,
 } from "@/lib/quiz/types";
+import { BATCH_SIZE, type TopicCandidate } from "@/lib/topic-generator/types";
 
 type Topic = DashboardData["topics"][number];
 type Category = DashboardData["categories"][number];
@@ -72,6 +78,7 @@ type Dialog =
   | "delete-topic"
   | "appearance"
   | "quiz"
+  | "generate-topics"
   | null;
 
 const BG_THEMES = [
@@ -997,6 +1004,261 @@ function QuizFlow({
   return null;
 }
 
+type GeneratorStep = "config" | "preview" | "done";
+
+function TopicGeneratorFlow({
+  categories,
+  initialCategoryId,
+  onClose,
+  onSaved,
+}: {
+  categories: Category[];
+  initialCategoryId: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [step, setStep] = useState<GeneratorStep>("config");
+  const [categoryId, setCategoryId] = useState(
+    initialCategoryId ?? categories[0]?.id ?? "",
+  );
+  const [candidates, setCandidates] = useState<TopicCandidate[]>([]);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [seenTitles, setSeenTitles] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const [savedSummary, setSavedSummary] = useState<{
+    addedCount: number;
+    skippedDuplicateTitles: string[];
+  } | null>(null);
+
+  const selectedCategory = categories.find((category) => category.id === categoryId);
+
+  function runGenerate(excludeTitles: string[]) {
+    if (!categoryId) return;
+    setError("");
+    startTransition(async () => {
+      const result = await generateTopicBatch(categoryId, excludeTitles);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setCandidates(result.candidates);
+      setSelectedIndices(
+        new Set(
+          result.candidates
+            .map((candidate, index) => [candidate, index] as const)
+            .filter(([candidate]) => candidate.duplicateStatus === "none")
+            .map(([, index]) => index),
+        ),
+      );
+      setSeenTitles((previous) => [
+        ...previous,
+        ...result.candidates.map((candidate) => candidate.topic.title),
+      ]);
+      setStep("preview");
+    });
+  }
+
+  function toggleSelected(index: number) {
+    setSelectedIndices((previous) => {
+      const next = new Set(previous);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  function saveSelected() {
+    const selected = candidates.filter((_, index) => selectedIndices.has(index));
+    if (selected.length === 0) return;
+    setError("");
+    startTransition(async () => {
+      const result = await saveGeneratedTopics(
+        categoryId,
+        selected.map(({ topic, referenceCard }) => ({ topic, referenceCard })),
+      );
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setSavedSummary({
+        addedCount: selected.length - result.skippedDuplicateTitles.length,
+        skippedDuplicateTitles: result.skippedDuplicateTitles,
+      });
+      setStep("done");
+      onSaved();
+    });
+  }
+
+  function generateAnotherBatch() {
+    setCandidates([]);
+    setSelectedIndices(new Set());
+    setSavedSummary(null);
+    setStep("config");
+  }
+
+  if (step === "config") {
+    return (
+      <div className="space-y-5">
+        <label className="block text-sm font-semibold">
+          Category
+          <select
+            aria-label="Category"
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
+            className="mt-2 h-11 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/15"
+          >
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedCategory && (
+          <p className="text-sm text-muted-foreground">
+            Existing topics: {selectedCategory.topicCount}
+          </p>
+        )}
+        {error && (
+          <p
+            role="alert"
+            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-3 border-t border-border pt-5">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => runGenerate([])}
+            disabled={!categoryId || isPending}
+            aria-busy={isPending}
+          >
+            {isPending ? "Generating..." : "Generate Next 10"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "preview") {
+    return (
+      <div className="space-y-5">
+        <p className="text-sm text-muted-foreground">
+          {candidates.length < BATCH_SIZE
+            ? `Coverage for this category is becoming comprehensive — only ${candidates.length} new topic${candidates.length === 1 ? "" : "s"} suggested.`
+            : `${candidates.length} new topics suggested.`}
+        </p>
+        <ul className="max-h-[50vh] space-y-3 overflow-y-auto">
+          {candidates.map((candidate, index) => (
+            <li
+              key={candidate.topic.title}
+              className="rounded-md border border-border p-3"
+            >
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id={`candidate-${index}`}
+                  checked={selectedIndices.has(index)}
+                  onChange={() => toggleSelected(index)}
+                  className="mt-1 h-4 w-4 accent-accent"
+                />
+                <label htmlFor={`candidate-${index}`} className="flex-1 cursor-pointer">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{candidate.topic.title}</span>
+                    {candidate.duplicateStatus === "exact" && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                        Exact duplicate
+                      </span>
+                    )}
+                    {candidate.duplicateStatus === "similar" && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                        Potential duplicate
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {candidate.topic.summary}
+                  </p>
+                  {candidate.matchedTitle && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Similar to existing: &quot;{candidate.matchedTitle}&quot;
+                    </p>
+                  )}
+                </label>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {error && (
+          <p
+            role="alert"
+            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap justify-end gap-3 border-t border-border pt-5">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => runGenerate(seenTitles)}
+            disabled={isPending}
+            aria-busy={isPending}
+          >
+            {isPending ? "Regenerating..." : "Regenerate"}
+          </Button>
+          <Button
+            type="button"
+            onClick={saveSelected}
+            disabled={selectedIndices.size === 0 || isPending}
+            aria-busy={isPending}
+          >
+            {isPending ? "Adding..." : `Add Selected (${selectedIndices.size})`}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "done" && savedSummary) {
+    return (
+      <div className="space-y-5 text-center">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          Topics Added
+        </p>
+        <p className="font-[var(--font-display)] text-3xl font-semibold">
+          {savedSummary.addedCount} topic{savedSummary.addedCount === 1 ? "" : "s"}{" "}
+          added
+        </p>
+        {savedSummary.skippedDuplicateTitles.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            Skipped {savedSummary.skippedDuplicateTitles.length} already in the
+            database: {savedSummary.skippedDuplicateTitles.join(", ")}
+          </p>
+        )}
+        <div className="flex justify-center gap-3 border-t border-border pt-5">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Close
+          </Button>
+          <Button type="button" onClick={generateAnotherBatch}>
+            Generate Next 10
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -1260,7 +1522,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             </label>
           )}
           <div
-            className={`grid gap-2 ${sidebarCollapsed ? "grid-cols-1" : "grid-cols-3"}`}
+            className={`grid gap-2 ${sidebarCollapsed ? "grid-cols-1" : "grid-cols-2"}`}
           >
             <Button
               className={sidebarCollapsed ? "px-0" : ""}
@@ -1290,6 +1552,16 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             >
               <FolderKanban size={16} />
               {!sidebarCollapsed && <span>Manage</span>}
+            </Button>
+            <Button
+              variant="outline"
+              className={sidebarCollapsed ? "px-0" : ""}
+              onClick={() => setDialog("generate-topics")}
+              aria-label="AI Generate Topics"
+              title="AI Generate Topics"
+            >
+              <Wand2 size={16} />
+              {!sidebarCollapsed && <span>AI Generate</span>}
             </Button>
           </div>
         </div>
@@ -1824,6 +2096,19 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             key={selectedTopic.id}
             topicId={selectedTopic.id}
             onClose={() => setDialog(null)}
+          />
+        </DialogShell>
+      )}
+      {dialog === "generate-topics" && (
+        <DialogShell
+          title="AI Topic Generator"
+          onClose={() => setDialog(null)}
+        >
+          <TopicGeneratorFlow
+            categories={data.categories}
+            initialCategoryId={categoryFilter}
+            onClose={() => setDialog(null)}
+            onSaved={() => router.refresh()}
           />
         </DialogShell>
       )}

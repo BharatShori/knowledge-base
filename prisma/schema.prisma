@@ -31,6 +31,10 @@ model Topic {
   relatedFrom    TopicRelation[] @relation("relatedFrom")
   relatedTo      TopicRelation[] @relation("relatedTo")
   quizSessions   QuizSession[]
+  aiGenerated    Boolean        @default(false)
+  aiProvider     String?
+  aiModel        String?
+  aiBatchId      String?
 
   @@index([categoryId])
   @@index([title])

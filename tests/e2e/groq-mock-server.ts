@@ -64,12 +64,15 @@ export function stopGroqMockServer(): Promise<void> {
   });
 }
 
+/** `responseBody` is whatever JSON object the AI is expected to return for
+ * the feature under test — e.g. `{ questions: [...] }` for Quiz Mode or
+ * `{ topics: [...] }` for the Topic Generator. */
 export async function setNextGroqResponse(
   port: number,
-  questions: unknown[],
+  responseBody: unknown,
 ): Promise<void> {
   await fetch(`http://localhost:${port}/__set-response`, {
     method: "POST",
-    body: JSON.stringify({ questions }),
+    body: JSON.stringify(responseBody),
   });
 }

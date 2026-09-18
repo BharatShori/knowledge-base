@@ -51,7 +51,7 @@ test("explains why a category containing topics cannot be deleted", async ({
     .click();
   await expect(page.getByRole("dialog").getByLabel("Title")).toBeVisible();
   await page.getByLabel("Title").fill(topicName);
-  await page.getByLabel("Category").selectOption({ label: categoryName });
+  await page.getByLabel("Category", { exact: true }).selectOption({ label: categoryName });
   await page.getByRole("button", { name: /save topic/i }).click();
   await expect(page.getByRole("heading", { name: topicName })).toBeVisible();
   await page.waitForLoadState("networkidle");

@@ -30,9 +30,9 @@ async function createTopicWithContent(
   await page.goto("/");
   await page.getByRole("button", { name: "Add topic" }).click();
   await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Category").selectOption({ label: "Automation" });
+  await page.getByLabel("Category", { exact: true }).selectOption({ label: "Automation" });
   await page
-    .getByLabel("Content")
+    .getByLabel("Content", { exact: true })
     .fill(
       "Playwright is a browser automation framework. ".repeat(10) +
         "It supports Chromium, Firefox and WebKit for reliable end-to-end testing.",
@@ -48,7 +48,7 @@ test("completes the full quiz flow: config, questions, results, review, and hist
   const runId = Date.now();
   const topicTitle = `E2E Quiz Topic ${runId}`;
   await createTopicWithContent(page, topicTitle);
-  await setNextGroqResponse(MOCK_PORT, MOCK_QUESTIONS);
+  await setNextGroqResponse(MOCK_PORT, { questions: MOCK_QUESTIONS });
 
   await page.getByRole("button", { name: "Quiz Me" }).click();
   await expect(page.getByText("Number of Questions")).toBeVisible();
@@ -110,7 +110,7 @@ test("shows a clear error and stays on the config screen when the AI response is
   await createTopicWithContent(page, topicTitle);
 
   // Malformed: only 4 questions when 5 were requested.
-  await setNextGroqResponse(MOCK_PORT, MOCK_QUESTIONS.slice(0, 4));
+  await setNextGroqResponse(MOCK_PORT, { questions: MOCK_QUESTIONS.slice(0, 4) });
 
   await page.getByRole("button", { name: "Quiz Me" }).click();
   await page.getByRole("button", { name: "5", exact: true }).click();

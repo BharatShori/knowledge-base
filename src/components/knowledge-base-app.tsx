@@ -444,7 +444,8 @@ function ImportForm({
   onImported: (firstTopicId: string | null) => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [json, setJson] = useState("");
+  const [format, setFormat] = useState<"json" | "markdown">("json");
+  const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState("");
 
@@ -453,7 +454,8 @@ function ImportForm({
     setError("");
     setResult("");
     const formData = new FormData();
-    formData.set("json", json);
+    formData.set("format", format);
+    formData.set("payload", text);
     startTransition(async () => {
       const response = await importTopics(formData);
       if (!response.success) {
@@ -467,14 +469,7 @@ function ImportForm({
     });
   }
 
-  return (
-    <form onSubmit={submit} className="space-y-5">
-      <div>
-        <p className="text-sm leading-6 text-muted-foreground">
-          Paste one topic object or an array of topic objects. Each topic needs
-          a title and category name.
-        </p>
-        <pre className="mt-3 overflow-x-auto rounded-md bg-[#f7f4ec] p-3 text-xs leading-5 text-muted-foreground">{`{
+  const jsonExample = `{
   "title": "Playwright",
   "category": "Automation",
   "summary": "Browser automation",
@@ -482,17 +477,87 @@ function ImportForm({
   "tags": ["e2e", "typescript"],
   "relatedTopics": [],
   "sources": [{ "title": "Docs", "url": "https://playwright.dev" }]
-}`}</pre>
-      </div>
-      <label className="block text-sm font-semibold" htmlFor="import-json">
-        JSON input
+}`;
+  const markdownExample = `# Playwright
+
+Category: Automation
+Tags: e2e, typescript
+Related: Browser Context
+Sources: [Docs](https://playwright.dev)
+Summary: Browser automation
+
+Detailed notes go here as Markdown content.`;
+
+  return (
+    <form onSubmit={submit} className="space-y-5">
+      <fieldset className="flex items-center gap-1 rounded-md border border-border p-1">
+        <legend className="sr-only">Import format</legend>
+        {(["json", "markdown"] as const).map((option) => (
+          <label
+            key={option}
+            className={`flex-1 cursor-pointer rounded-sm px-3 py-1.5 text-center text-sm font-medium capitalize transition-colors ${
+              format === option
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <input
+              type="radio"
+              name="import-format"
+              value={option}
+              checked={format === option}
+              onChange={() => setFormat(option)}
+              className="sr-only"
+            />
+            {option}
+          </label>
+        ))}
+      </fieldset>
+      <details className="group rounded-md border border-border">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-medium">
+          <ChevronRight
+            size={16}
+            className="shrink-0 transition-transform group-open:rotate-90"
+          />
+          Usage info
+        </summary>
+        <div className="border-t border-border px-3 py-3">
+          {format === "json" ? (
+            <>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Paste one topic object or an array of topic objects. Each
+                topic needs a title and category name.
+              </p>
+              <pre className="mt-3 overflow-x-auto rounded-md bg-[#f7f4ec] p-3 text-xs leading-5 text-muted-foreground">
+                {jsonExample}
+              </pre>
+            </>
+          ) : (
+            <>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Start each topic with a level-1 heading (# Title). Optional
+                metadata lines directly below it set Category, Tags, Related
+                and Sources; everything after that becomes the topic&apos;s
+                content. Sources use Markdown links.
+              </p>
+              <pre className="mt-3 overflow-x-auto rounded-md bg-[#f7f4ec] p-3 text-xs leading-5 text-muted-foreground">
+                {markdownExample}
+              </pre>
+            </>
+          )}
+        </div>
+      </details>
+      <label className="block text-sm font-semibold" htmlFor="import-payload">
+        {format === "json" ? "JSON input" : "Markdown input"}
         <textarea
-          id="import-json"
-          value={json}
-          onChange={(event) => setJson(event.target.value)}
+          id="import-payload"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
           required
           className="mt-2 min-h-64 w-full resize-y rounded-md border border-border bg-background px-3 py-2.5 font-mono text-xs outline-none focus:border-accent focus:ring-2 focus:ring-accent/15"
-          placeholder="Paste JSON here..."
+          placeholder={
+            format === "json" ? "Paste JSON here..." : "Paste Markdown here..."
+          }
         />
       </label>
       {error && (
@@ -783,8 +848,8 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               variant="outline"
               className={sidebarCollapsed ? "px-0" : ""}
               onClick={() => setDialog("import")}
-              aria-label="Import JSON"
-              title="Import JSON"
+              aria-label="Import"
+              title="Import"
             >
               <Upload size={16} />
               {!sidebarCollapsed && <span>Import</span>}
@@ -1290,7 +1355,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
       )}
       {dialog === "import" && (
         <DialogShell
-          title="Import topics from JSON"
+          title="Import topics"
           onClose={() => setDialog(null)}
         >
           <ImportForm

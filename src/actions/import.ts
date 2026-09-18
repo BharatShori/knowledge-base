@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { parseMarkdownImport } from "@/lib/markdown-import";
 import { slugify } from "@/lib/slug";
 import { importPayloadSchema } from "@/lib/validation";
 
@@ -16,19 +17,38 @@ type ImportResult =
 export async function importTopics(
   formData: FormData,
 ): Promise<ImportResult> {
-  const raw = formData.get("json");
+  const format = formData.get("format") === "markdown" ? "markdown" : "json";
+  const raw = formData.get("payload");
   if (typeof raw !== "string" || !raw.trim()) {
-    return { success: false, error: "Paste JSON before importing." };
+    return {
+      success: false,
+      error:
+        format === "markdown"
+          ? "Paste Markdown before importing."
+          : "Paste JSON before importing.",
+    };
   }
   if (raw.length > 1_000_000) {
-    return { success: false, error: "Import JSON must be smaller than 1 MB." };
+    return { success: false, error: "Import text must be smaller than 1 MB." };
   }
 
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { success: false, error: "Import JSON is not valid JSON." };
+  if (format === "markdown") {
+    const topics = parseMarkdownImport(raw);
+    if (topics.length === 0) {
+      return {
+        success: false,
+        error:
+          "No topics found. Start each topic with a level-1 heading (# Title).",
+      };
+    }
+    parsed = topics;
+  } else {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { success: false, error: "Import JSON is not valid JSON." };
+    }
   }
 
   const payload = importPayloadSchema.safeParse(parsed);

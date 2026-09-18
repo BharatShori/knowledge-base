@@ -9,7 +9,7 @@ test("imports multiple topics from a JSON array", async ({ page }) => {
   const firstTitle = `E2E Imported Playwright ${runId}`;
   const secondTitle = `E2E Imported REST API ${runId}`;
   await page.goto("/");
-  await page.getByRole("button", { name: /import json/i }).click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
   await page.getByLabel("JSON input").fill(
     JSON.stringify([
       {
@@ -39,6 +39,33 @@ test("imports multiple topics from a JSON array", async ({ page }) => {
   ).toHaveAttribute("href", "https://playwright.dev");
 });
 
+test("imports a topic from Markdown", async ({ page }) => {
+  const runId = Date.now();
+  const title = `E2E Markdown Playwright ${runId}`;
+  await page.goto("/");
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  await page.getByText("markdown", { exact: true }).click();
+  await page.getByLabel("Markdown input").fill(`# ${title}
+
+Category: E2E Import
+Tags: e2e-import-${runId}
+Sources: [Playwright docs](https://playwright.dev)
+Summary: Imported via Markdown.
+
+Detailed Markdown notes for this topic.`);
+  await page.getByRole("button", { name: /import topics/i }).click();
+  await expect(page.getByText("1 topic imported.")).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(
+    page.getByText("Detailed Markdown notes for this topic."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Playwright docs" }),
+  ).toHaveAttribute("href", "https://playwright.dev");
+});
+
 test("enriches an existing topic and ignores missing related topics", async ({
   page,
 }) => {
@@ -53,7 +80,7 @@ test("enriches an existing topic and ignores missing related topics", async ({
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await page.waitForLoadState("networkidle");
 
-  await page.getByRole("button", { name: /import json/i }).click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
   await page.getByLabel("JSON input").fill(
     JSON.stringify({
       title,

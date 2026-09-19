@@ -57,6 +57,51 @@ test("creates, views, edits, and deletes a topic", async ({ page }) => {
   ).not.toBeVisible();
 });
 
+test("expands the reading view to full screen and shows adjacent topic titles", async ({
+  page,
+}) => {
+  const runId = Date.now();
+  const sharedTag = `e2e-fullscreen-${runId}`;
+  const firstTitle = `E2E Fullscreen A ${runId}`;
+  const secondTitle = `E2E Fullscreen B ${runId}`;
+
+  async function createTaggedTopic(title: string) {
+    await page.getByRole("button", { name: "Add topic" }).click();
+    await page.getByLabel("Title").fill(title);
+    await page
+      .getByLabel("Category", { exact: true })
+      .selectOption({ label: "Automation" });
+    await page.getByLabel("Tags", { exact: true }).fill(sharedTag);
+    await page.getByRole("button", { name: /save topic/i }).click();
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+  }
+
+  await page.goto("/");
+  await createTaggedTopic(firstTitle);
+  await createTaggedTopic(secondTitle);
+  // The topic list orders by most-recently-updated first, so secondTitle
+  // (just created) is already selected and sorts ahead of firstTitle.
+
+  // Filter to just these two topics so their adjacency is deterministic.
+  await page
+    .locator("main")
+    .getByRole("button", { name: sharedTag, exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: secondTitle })).toBeVisible();
+
+  await page.getByRole("button", { name: "Enter full screen" }).click();
+  await expect(page.getByRole("button", { name: "Dashboard" })).not.toBeVisible();
+  await expect(page.getByText(firstTitle)).toBeVisible();
+
+  await page.getByRole("button", { name: "Next topic" }).click();
+  await expect(page.getByRole("heading", { name: firstTitle })).toBeVisible();
+  await expect(page.getByText(secondTitle)).toBeVisible();
+
+  await page.getByRole("button", { name: "Exit full screen" }).click();
+  await expect(page.getByRole("button", { name: "Dashboard" })).toBeVisible();
+});
+
 test("copies a topic as rich text for sharing", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const runId = Date.now();

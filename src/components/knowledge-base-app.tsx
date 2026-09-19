@@ -18,7 +18,9 @@ import {
   FolderKanban,
   GraduationCap,
   Hash,
+  Maximize2,
   Menu,
+  Minimize2,
   PanelLeftClose,
   PanelLeftOpen,
   Pencil,
@@ -666,11 +668,15 @@ function QuizPane({
   prefillTopicId,
   onExit,
   onProgressChange,
+  isFullScreen,
+  onToggleFullScreen,
 }: {
   topics: Topic[];
   prefillTopicId: string | null;
   onExit: () => void;
   onProgressChange: (inProgress: boolean) => void;
+  isFullScreen: boolean;
+  onToggleFullScreen: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState<QuizPaneStep>("landing");
@@ -892,6 +898,15 @@ function QuizPane({
         )}
         <Button variant="outline" size="sm" onClick={requestExit}>
           Exit Quiz
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={isFullScreen ? "Exit full screen" : "Enter full screen"}
+          title={isFullScreen ? "Exit full screen" : "Enter full screen"}
+          onClick={onToggleFullScreen}
+        >
+          {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
         </Button>
       </div>
     </div>
@@ -1699,6 +1714,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
   const [pendingNavigation, setPendingNavigation] = useState<
     (() => void) | null
   >(null);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(
     data.topics[0]?.id ?? null,
   );
@@ -1922,13 +1938,14 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      {mobileSidebarOpen && (
+      {!isFullScreen && mobileSidebarOpen && (
         <button
           aria-label="Close navigation"
           className="fixed inset-0 z-30 bg-foreground/20 lg:hidden"
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}
+      {!isFullScreen && (
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex min-h-screen shrink-0 flex-col border-r border-border bg-[#f7f4ec] py-5 transition-[width,padding] duration-200 lg:sticky lg:top-0 lg:h-screen ${mobileSidebarOpen ? "flex" : "hidden lg:flex"} ${sidebarCollapsed ? "w-[92px] px-2" : "w-[280px] px-5"}`}
       >
@@ -2120,7 +2137,9 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
           </div>
         </nav>
       </aside>
+      )}
       <main className="min-w-0 flex-1">
+        {!isFullScreen && (
         <header className="flex min-h-[58px] items-center justify-between gap-4 border-b border-border bg-surface px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <Button
@@ -2181,7 +2200,15 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             </Button>
           </div>
         </header>
-        <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8">
+        )}
+        <div
+          className={
+            isFullScreen
+              ? "px-4 py-4 sm:px-6"
+              : "mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8"
+          }
+        >
+          {!isFullScreen && (
           <section aria-label="Knowledge base overview" className="mb-6">
             <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-surface px-4 py-3">
               <div className="min-w-0">
@@ -2245,19 +2272,29 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               </div>
             )}
           </section>
+          )}
           {mainView === "quiz" && (
-            <div className="mt-6">
+            <div className={isFullScreen ? "" : "mt-6"}>
               <QuizPane
                 topics={data.topics}
                 prefillTopicId={quizPrefillTopicId}
                 onExit={() => setMainView("browse")}
                 onProgressChange={setQuizInProgress}
+                isFullScreen={isFullScreen}
+                onToggleFullScreen={() => setIsFullScreen((v) => !v)}
               />
             </div>
           )}
           {mainView === "browse" && (
           <>
-          <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(250px,0.72fr)_minmax(0,1.6fr)]">
+          <div
+            className={
+              isFullScreen
+                ? "grid gap-5"
+                : "mt-6 grid gap-5 xl:grid-cols-[minmax(250px,0.72fr)_minmax(0,1.6fr)]"
+            }
+          >
+            {!isFullScreen && (
             <Card>
               <CardContent>
                 <div className="flex items-center justify-between">
@@ -2346,36 +2383,53 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 </div>
               </CardContent>
             </Card>
+            )}
             <Card>
               <CardContent>
                 {selectedTopic ? (
                   <article>
                     <div className="mb-5 flex items-center justify-between gap-3 border-b border-border pb-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          previousTopic && selectTopic(previousTopic.id)
-                        }
-                        disabled={!previousTopic}
-                        aria-label="Previous topic"
-                      >
-                        <ArrowLeft size={15} />
-                        <span className="hidden sm:inline">Back</span>
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {selectedTopicIndex + 1} of {visibleTopics.length}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => nextTopic && selectTopic(nextTopic.id)}
-                        disabled={!nextTopic}
-                        aria-label="Next topic"
-                      >
-                        <span className="hidden sm:inline">Next</span>
-                        <ArrowRight size={15} />
-                      </Button>
+                      <div className="flex min-w-0 flex-col items-start gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            previousTopic && selectTopic(previousTopic.id)
+                          }
+                          disabled={!previousTopic}
+                          aria-label="Previous topic"
+                        >
+                          <ArrowLeft size={15} />
+                          <span className="hidden sm:inline">Back</span>
+                        </Button>
+                        {isFullScreen && previousTopic && (
+                          <span className="max-w-[200px] truncate text-[11px] text-muted-foreground">
+                            {previousTopic.title}
+                          </span>
+                        )}
+                      </div>
+                      {!isFullScreen && (
+                        <span className="text-xs text-muted-foreground">
+                          {selectedTopicIndex + 1} of {visibleTopics.length}
+                        </span>
+                      )}
+                      <div className="flex min-w-0 flex-col items-end gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => nextTopic && selectTopic(nextTopic.id)}
+                          disabled={!nextTopic}
+                          aria-label="Next topic"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <ArrowRight size={15} />
+                        </Button>
+                        {isFullScreen && nextTopic && (
+                          <span className="max-w-[200px] truncate text-[11px] text-muted-foreground">
+                            {nextTopic.title}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -2429,6 +2483,27 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                           onClick={() => setDialog("delete-topic")}
                         >
                           <Trash2 size={16} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={
+                            isFullScreen
+                              ? "Exit full screen"
+                              : "Enter full screen"
+                          }
+                          title={
+                            isFullScreen
+                              ? "Exit full screen"
+                              : "Enter full screen"
+                          }
+                          onClick={() => setIsFullScreen((value) => !value)}
+                        >
+                          {isFullScreen ? (
+                            <Minimize2 size={16} />
+                          ) : (
+                            <Maximize2 size={16} />
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -2538,6 +2613,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               </CardContent>
             </Card>
           </div>
+          {!isFullScreen && (
           <div className="mt-6">
             <Card>
               <CardContent>
@@ -2557,6 +2633,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               </CardContent>
             </Card>
           </div>
+          )}
           </>
           )}
         </div>

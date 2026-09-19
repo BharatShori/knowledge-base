@@ -221,3 +221,17 @@ test("confirms before leaving an in-progress quiz via sidebar navigation, not ju
   await page.getByRole("button", { name: "Leave Quiz" }).click();
   await expect(page.getByRole("button", { name: "Quiz Me" })).toBeVisible();
 });
+
+test("expands the quiz pane to full screen, hiding the sidebar", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+  await expect(page.getByText("Number of Questions")).toBeVisible();
+
+  await page.getByRole("button", { name: "Enter full screen" }).click();
+  await expect(page.getByRole("button", { name: "Dashboard" })).not.toBeVisible();
+
+  await page.getByRole("button", { name: "Exit full screen" }).click();
+  await expect(page.getByRole("button", { name: "Dashboard" })).toBeVisible();
+});

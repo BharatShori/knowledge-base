@@ -8,7 +8,10 @@ import { prisma } from "@/lib/db";
 import { slugify } from "@/lib/slug";
 import { getAIProvider } from "@/lib/ai";
 import { generateTopicBatch as generateTopicBatchService } from "@/lib/topic-generator/service";
-import { topicPairSchema } from "@/lib/topic-generator/schema";
+import {
+  categoryReferenceCardDraftSchema,
+  topicDraftSchema,
+} from "@/lib/topic-generator/schema";
 import { BATCH_SIZE } from "@/lib/topic-generator/types";
 import type {
   GenerateTopicBatchResult,
@@ -35,6 +38,8 @@ export async function generateTopicBatch(
     success: true,
     candidates: result.candidates,
     requestedCount: BATCH_SIZE,
+    categoryReferenceCard: result.categoryReferenceCard,
+    categoryReferenceCardTitle: result.categoryReferenceCardTitle,
   };
 }
 
@@ -73,16 +78,28 @@ async function uniqueSlug(
 
 export async function saveGeneratedTopics(
   categoryId: string,
-  selectedCandidates: unknown,
+  selectedTopics: unknown,
+  categoryReferenceCard: unknown,
 ): Promise<SaveGeneratedTopicsResult> {
   if (!categoryId) return { error: "Category is required." };
 
-  const parsed = z
-    .array(topicPairSchema)
-    .min(1, "Select at least one topic to add.")
+  const parsedTopics = z
+    .array(topicDraftSchema)
     .max(BATCH_SIZE)
-    .safeParse(selectedCandidates);
-  if (!parsed.success) return { error: "Invalid topic data." };
+    .safeParse(selectedTopics);
+  if (!parsedTopics.success) return { error: "Invalid topic data." };
+
+  const parsedReferenceCard = categoryReferenceCard
+    ? categoryReferenceCardDraftSchema.safeParse(categoryReferenceCard)
+    : null;
+  if (parsedReferenceCard && !parsedReferenceCard.success) {
+    return { error: "Invalid reference card data." };
+  }
+  const referenceCardData = parsedReferenceCard?.data ?? null;
+
+  if (parsedTopics.data.length === 0 && !referenceCardData) {
+    return { error: "Select at least one topic to add." };
+  }
 
   const category = await prisma.category.findUnique({ where: { id: categoryId } });
   if (!category) return { error: "Category not found." };
@@ -116,22 +133,22 @@ export async function saveGeneratedTopics(
         const skippedDuplicateTitles: string[] = [];
         const pendingRelations: { fromTopicId: string; relatedTitles: string[] }[] = [];
 
-        for (const pair of parsed.data) {
+        for (const topic of parsedTopics.data) {
           // Defense in depth: never insert a topic whose title exactly matches
           // an existing one, even if a stale/tampered client payload asks for it.
-          if (existingSlugs.has(slugify(pair.topic.title))) {
-            skippedDuplicateTitles.push(pair.topic.title);
+          if (existingSlugs.has(slugify(topic.title))) {
+            skippedDuplicateTitles.push(topic.title);
             continue;
           }
 
-          const topicSlug = await uniqueSlug(tx, pair.topic.title);
-          const topicTagIds = await resolveTagIds(tx, pair.topic.tags);
-          const topic = await tx.topic.create({
+          const topicSlug = await uniqueSlug(tx, topic.title);
+          const topicTagIds = await resolveTagIds(tx, topic.tags);
+          const created = await tx.topic.create({
             data: {
-              title: pair.topic.title,
+              title: topic.title,
               slug: topicSlug,
-              summary: pair.topic.summary,
-              content: pair.topic.content,
+              summary: topic.summary,
+              content: topic.content,
               categoryId,
               aiGenerated: true,
               aiProvider,
@@ -140,41 +157,42 @@ export async function saveGeneratedTopics(
               tags: { create: topicTagIds.map((tagId) => ({ tagId })) },
             },
           });
-          topicIdsByTitle.set(pair.topic.title.trim().toLowerCase(), topic.id);
+          topicIdsByTitle.set(topic.title.trim().toLowerCase(), created.id);
           existingSlugs.add(topicSlug);
-          createdIds.push(topic.id);
+          createdIds.push(created.id);
           pendingRelations.push({
-            fromTopicId: topic.id,
-            relatedTitles: pair.topic.relatedTopics,
+            fromTopicId: created.id,
+            relatedTitles: topic.relatedTopics,
           });
+        }
 
-          const referenceCardTitle = `${pair.topic.title} — Reference Card`;
-          const referenceCardSlug = await uniqueSlug(tx, referenceCardTitle);
-          const referenceCardTagIds = await resolveTagIds(tx, [
-            ...pair.referenceCard.tags,
-            "Reference Card",
-            "Cheat Sheet",
-          ]);
-          const referenceCard = await tx.topic.create({
-            data: {
-              title: referenceCardTitle,
-              slug: referenceCardSlug,
-              summary: pair.referenceCard.summary,
-              content: pair.referenceCard.content,
-              categoryId,
-              aiGenerated: true,
-              aiProvider,
-              aiModel,
-              aiBatchId: batchId,
-              tags: { create: referenceCardTagIds.map((tagId) => ({ tagId })) },
-            },
-          });
-          topicIdsByTitle.set(referenceCardTitle.trim().toLowerCase(), referenceCard.id);
-          createdIds.push(referenceCard.id);
-          pendingRelations.push({
-            fromTopicId: referenceCard.id,
-            relatedTitles: pair.referenceCard.relatedTopics,
-          });
+        if (referenceCardData) {
+          const referenceCardTitle = `${category.name} — Reference Card`;
+          if (existingSlugs.has(slugify(referenceCardTitle))) {
+            skippedDuplicateTitles.push(referenceCardTitle);
+          } else {
+            const referenceCardSlug = await uniqueSlug(tx, referenceCardTitle);
+            const referenceCardTagIds = await resolveTagIds(tx, [
+              ...referenceCardData.tags,
+              "Reference Card",
+              "Cheat Sheet",
+            ]);
+            const referenceCard = await tx.topic.create({
+              data: {
+                title: referenceCardTitle,
+                slug: referenceCardSlug,
+                summary: referenceCardData.summary,
+                content: referenceCardData.content,
+                categoryId,
+                aiGenerated: true,
+                aiProvider,
+                aiModel,
+                aiBatchId: batchId,
+                tags: { create: referenceCardTagIds.map((tagId) => ({ tagId })) },
+              },
+            });
+            createdIds.push(referenceCard.id);
+          }
         }
 
         for (const { fromTopicId, relatedTitles } of pendingRelations) {

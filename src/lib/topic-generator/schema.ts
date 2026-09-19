@@ -7,7 +7,7 @@ const stringArray = z
   .optional()
   .transform((value) => value ?? []);
 
-const topicDraftSchema = z
+export const topicDraftSchema = z
   .object({
     title: z.string().trim().min(1).max(140),
     summary: z.string().trim().min(1).max(280),
@@ -17,28 +17,28 @@ const topicDraftSchema = z
   })
   .strict();
 
-const referenceCardDraftSchema = z
+export const categoryReferenceCardDraftSchema = z
   .object({
     summary: z.string().trim().min(1).max(280),
     content: z.string().trim().min(1).max(20000),
     tags: stringArray,
-    relatedTopics: stringArray,
   })
   .strict();
 
-export const topicPairSchema = z
-  .object({
-    topic: topicDraftSchema,
-    referenceCard: referenceCardDraftSchema,
-  })
-  .strict();
-
-export function topicBatchResponseSchema(maxBatchSize: number) {
+export function topicBatchResponseSchema(
+  maxBatchSize: number,
+  requireCategoryReferenceCard: boolean,
+) {
   return z
-    .object({ topics: z.array(topicPairSchema).min(1).max(maxBatchSize) })
+    .object({
+      topics: z.array(topicDraftSchema).min(1).max(maxBatchSize),
+      categoryReferenceCard: requireCategoryReferenceCard
+        ? categoryReferenceCardDraftSchema
+        : categoryReferenceCardDraftSchema.optional(),
+    })
     .strict()
     .superRefine((value, ctx) => {
-      const normalizedTitles = value.topics.map((pair) => slugify(pair.topic.title));
+      const normalizedTitles = value.topics.map((topic) => slugify(topic.title));
       if (new Set(normalizedTitles).size !== normalizedTitles.length) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

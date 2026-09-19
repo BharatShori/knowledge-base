@@ -3,11 +3,15 @@ import type { AIProvider, ChatMessage } from "@/lib/ai/provider";
 
 const categoryFindUnique = vi.fn();
 const topicFindMany = vi.fn();
+const topicFindUnique = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   prisma: {
     category: { findUnique: (...args: unknown[]) => categoryFindUnique(...args) },
-    topic: { findMany: (...args: unknown[]) => topicFindMany(...args) },
+    topic: {
+      findMany: (...args: unknown[]) => topicFindMany(...args),
+      findUnique: (...args: unknown[]) => topicFindUnique(...args),
+    },
   },
 }));
 
@@ -19,35 +23,42 @@ function fakeProvider(generateJson: AIProvider["generateJson"]): AIProvider {
   return { name: "fake", model: "fake-model", generateJson };
 }
 
-function validTopicPair(title: string) {
+function validTopic(title: string) {
   return {
-    topic: {
-      title,
-      summary: "A concise summary of the topic.",
-      content: "## Overview\nSubstantial markdown content about the topic.",
-      tags: ["Architecture"],
-      relatedTopics: [],
-    },
-    referenceCard: {
-      summary: "Quick reference summary.",
-      content: "## Key Points\n- One\n- Two",
-      tags: ["Reference Card", "Cheat Sheet"],
-      relatedTopics: [],
-    },
+    title,
+    summary: "A concise summary of the topic.",
+    content: "## Overview\nSubstantial markdown content about the topic.",
+    tags: ["Architecture"],
+    relatedTopics: [],
   };
 }
 
-function validBatchJson(count: number) {
+function validCategoryReferenceCard() {
+  return {
+    summary: "Quick reference summary.",
+    content: "## Key Points\n- One\n- Two",
+    tags: ["Reference Card", "Cheat Sheet"],
+  };
+}
+
+function validBatchJson(count: number, includeReferenceCard = false) {
   return {
     topics: Array.from({ length: count }, (_, index) =>
-      validTopicPair(`Generated Topic ${index + 1}`),
+      validTopic(`Generated Topic ${index + 1}`),
     ),
+    ...(includeReferenceCard
+      ? { categoryReferenceCard: validCategoryReferenceCard() }
+      : {}),
   };
 }
 
 beforeEach(() => {
   categoryFindUnique.mockReset();
   topicFindMany.mockReset();
+  topicFindUnique.mockReset();
+  // Default: the category already has a reference card, so most tests
+  // don't need to also supply one in their mocked AI response.
+  topicFindUnique.mockResolvedValue({ id: "existing-reference-card" });
 });
 
 describe("generateTopicBatch", () => {
@@ -76,9 +87,63 @@ describe("generateTopicBatch", () => {
     if (result.ok) {
       expect(result.candidates).toHaveLength(10);
       expect(result.candidates.every((c) => c.duplicateStatus === "none")).toBe(true);
+      expect(result.categoryReferenceCard).toBeNull();
+      expect(result.categoryReferenceCardTitle).toBe(
+        "Software Architecture — Reference Card",
+      );
       expect(result.provider).toBe("fake");
       expect(result.model).toBe("fake-model");
     }
+  });
+
+  it("requests and returns a category reference card when the category doesn't have one yet", async () => {
+    categoryFindUnique.mockResolvedValueOnce(CATEGORY);
+    topicFindUnique.mockResolvedValueOnce(null); // no existing reference card
+    topicFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const generateJson = vi.fn().mockResolvedValue(validBatchJson(2, true));
+
+    const result = await generateTopicBatch(
+      { categoryId: CATEGORY.id },
+      fakeProvider(generateJson),
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.categoryReferenceCard).not.toBeNull();
+      expect(result.categoryReferenceCard?.summary).toBe(
+        "Quick reference summary.",
+      );
+    }
+    const messages = generateJson.mock.calls[0][0] as ChatMessage[];
+    const systemMessage = messages.find((message) => message.role === "system");
+    expect(systemMessage?.content).toContain("also generate ONE overall Reference Card");
+  });
+
+  it("tells the model not to generate a reference card when one already exists", async () => {
+    categoryFindUnique.mockResolvedValueOnce(CATEGORY);
+    topicFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const generateJson = vi.fn().mockResolvedValue(validBatchJson(2));
+
+    await generateTopicBatch({ categoryId: CATEGORY.id }, fakeProvider(generateJson));
+
+    const messages = generateJson.mock.calls[0][0] as ChatMessage[];
+    const systemMessage = messages.find((message) => message.role === "system");
+    expect(systemMessage?.content).toContain(
+      "Do not generate a Reference Card. This category already has one.",
+    );
+  });
+
+  it("rejects a response missing the reference card when one was required", async () => {
+    categoryFindUnique.mockResolvedValueOnce(CATEGORY);
+    topicFindUnique.mockResolvedValueOnce(null);
+    topicFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const generateJson = vi.fn().mockResolvedValue(validBatchJson(2)); // no reference card
+
+    const result = await generateTopicBatch(
+      { categoryId: CATEGORY.id },
+      fakeProvider(generateJson),
+    );
+    expect(result.ok).toBe(false);
   });
 
   it("allows fewer than the max batch size (comprehensive coverage case)", async () => {
@@ -122,7 +187,7 @@ describe("generateTopicBatch", () => {
       .mockResolvedValueOnce([{ title: "Contract Testing for APIs" }]);
     const generateJson = vi
       .fn()
-      .mockResolvedValue({ topics: [validTopicPair("API Contract Testing")] });
+      .mockResolvedValue({ topics: [validTopic("API Contract Testing")] });
 
     const result = await generateTopicBatch(
       { categoryId: CATEGORY.id },
@@ -140,7 +205,7 @@ describe("generateTopicBatch", () => {
       .mockResolvedValueOnce([{ title: "Circuit Breaker Pattern — Reference Card" }]);
     const generateJson = vi
       .fn()
-      .mockResolvedValue({ topics: [validTopicPair("Circuit Breaker Pattern")] });
+      .mockResolvedValue({ topics: [validTopic("Circuit Breaker Pattern")] });
 
     const result = await generateTopicBatch(
       { categoryId: CATEGORY.id },
@@ -169,24 +234,9 @@ describe("generateTopicBatch", () => {
   it("returns a generic error when a topic is missing required fields", async () => {
     categoryFindUnique.mockResolvedValueOnce(CATEGORY);
     topicFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-    const badPair = validTopicPair("Broken Topic");
-    // @ts-expect-error intentionally malformed for the test
-    delete badPair.topic.content;
-    const generateJson = vi.fn().mockResolvedValue({ topics: [badPair] });
-
-    const result = await generateTopicBatch(
-      { categoryId: CATEGORY.id },
-      fakeProvider(generateJson),
-    );
-    expect(result.ok).toBe(false);
-  });
-
-  it("returns a generic error when the Reference Card is missing", async () => {
-    categoryFindUnique.mockResolvedValueOnce(CATEGORY);
-    topicFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-    const badPair: Record<string, unknown> = validTopicPair("Broken Topic");
-    delete badPair.referenceCard;
-    const generateJson = vi.fn().mockResolvedValue({ topics: [badPair] });
+    const badTopic: Record<string, unknown> = validTopic("Broken Topic");
+    delete badTopic.content;
+    const generateJson = vi.fn().mockResolvedValue({ topics: [badTopic] });
 
     const result = await generateTopicBatch(
       { categoryId: CATEGORY.id },
@@ -199,7 +249,7 @@ describe("generateTopicBatch", () => {
     categoryFindUnique.mockResolvedValueOnce(CATEGORY);
     topicFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const generateJson = vi.fn().mockResolvedValue({
-      topics: [validTopicPair("Same Title"), validTopicPair("Same Title")],
+      topics: [validTopic("Same Title"), validTopic("Same Title")],
     });
 
     const result = await generateTopicBatch(

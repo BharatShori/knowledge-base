@@ -6,14 +6,25 @@ export function buildTopicGenerationMessages(params: {
   existingTitles: string[];
   batchSize: number;
   excludeTitles?: string[];
+  includeCategoryReferenceCard: boolean;
 }): ChatMessage[] {
-  const { categoryName, existingTitles, batchSize, excludeTitles = [] } = params;
+  const {
+    categoryName,
+    existingTitles,
+    batchSize,
+    excludeTitles = [],
+    includeCategoryReferenceCard,
+  } = params;
 
   const cappedTitles = existingTitles.slice(0, MAX_CONTEXT_TITLES);
   const truncatedNote =
     existingTitles.length > cappedTitles.length
       ? `\n(${existingTitles.length - cappedTitles.length} additional existing titles omitted for brevity.)`
       : "";
+
+  const referenceCardInstruction = includeCategoryReferenceCard
+    ? `In addition to the topics, also generate ONE overall Reference Card for the "${categoryName}" category as a whole (not per topic). It is a dense, scan-friendly quick-recall aid for interviews, discussions, and revision covering the category's key definitions, principles, terminology, common patterns, common mistakes, tools, and interview points — a category-wide index, not tied to any single topic below.`
+    : `Do not generate a Reference Card. This category already has one.`;
 
   const system = `You are a principal software engineer curating a professional Software Engineering knowledge base. Quality Engineering is a major area of expertise, but the knowledge base now spans all of software engineering — the category you are given determines the subject matter (it could be an engineering discipline, a language, a business domain like accounting, or anything else already in the knowledge base).
 
@@ -34,12 +45,16 @@ Avoid:
 
 Build coverage progressively across requests: foundation and core concepts first, then practical application, then advanced concepts, architecture and trade-offs, real-world scenarios, and operational considerations. Do not simply return the most famous topics every time — prioritize filling real gaps in what is already covered.
 
-For every topic you generate, also produce a companion Reference Card. The Reference Card is NOT a repeat of the article — it is a dense, scan-friendly quick-recall aid for interviews, discussions, and revision. Where applicable include: definition, key principles, terminology, important rules, workflow, common patterns, common mistakes, testing considerations, tools, commands/code patterns, interview points, a practical example, and points to remember.
+${referenceCardInstruction}
 
-Topic content and Reference Card content must both be Markdown, using headings, lists, tables, and code examples where useful. Do not write unnecessarily long articles.
+All Markdown content should use headings, lists, tables, and code examples where useful. Do not write unnecessarily long articles.
 
 Respond with strict JSON only, matching this shape exactly, with no extra fields:
-{"topics":[{"topic":{"title":"string","summary":"string","content":"string (markdown)","tags":["string"],"relatedTopics":["string"]},"referenceCard":{"summary":"string","content":"string (markdown)","tags":["string"],"relatedTopics":["string"]}}]}
+{"topics":[{"title":"string","summary":"string","content":"string (markdown)","tags":["string"],"relatedTopics":["string"]}]${
+    includeCategoryReferenceCard
+      ? `,"categoryReferenceCard":{"summary":"string","content":"string (markdown)","tags":["string"]}`
+      : ""
+  }}
 
 Suggest relatedTopics using titles that plausibly already exist in this knowledge base when possible; otherwise omit rather than invent unrelated titles.`;
 
@@ -53,7 +68,7 @@ Suggest relatedTopics using titles that plausibly already exist in this knowledg
 Existing topics already covered in this category (do not duplicate or closely rework these):
 ${cappedTitles.length > 0 ? cappedTitles.map((title) => `- ${title}`).join("\n") : "(none yet — this category is empty)"}${truncatedNote}${excludeSection}
 
-Generate up to ${batchSize} new topic + Reference Card pairs that meaningfully expand coverage of this category without duplicating or substantially overlapping the existing topics above. If the category is already comprehensively covered and fewer than ${batchSize} genuinely new, valuable topics remain, return fewer — do not invent low-value filler just to reach ${batchSize}.`;
+Generate up to ${batchSize} new topics that meaningfully expand coverage of this category without duplicating or substantially overlapping the existing topics above. If the category is already comprehensively covered and fewer than ${batchSize} genuinely new, valuable topics remain, return fewer — do not invent low-value filler just to reach ${batchSize}.`;
 
   return [
     { role: "system", content: system },

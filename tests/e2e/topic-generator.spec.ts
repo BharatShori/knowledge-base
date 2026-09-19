@@ -18,25 +18,25 @@ test.afterAll(() => stopGroqMockServer());
 test.beforeEach(cleanupTestData);
 test.afterEach(cleanupTestData);
 
-function mockPair(title: string, relatedTopics: string[] = []) {
+function mockTopic(title: string, relatedTopics: string[] = []) {
   return {
-    topic: {
-      title,
-      summary: `Summary for ${title}.`,
-      content: `## Overview\nMarkdown content about ${title}.`,
-      tags: ["Architecture"],
-      relatedTopics,
-    },
-    referenceCard: {
-      summary: `Quick reference for ${title}.`,
-      content: `## Key Points\n- Point about ${title}`,
-      tags: [],
-      relatedTopics: [],
-    },
+    title,
+    summary: `Summary for ${title}.`,
+    content: `## Overview\nMarkdown content about ${title}.`,
+    tags: ["Architecture"],
+    relatedTopics,
   };
 }
 
-test("generates, previews, selects, and saves a batch, then generates another", async ({
+function mockReferenceCard(categoryName: string) {
+  return {
+    summary: `Quick reference for ${categoryName}.`,
+    content: `## Key Points\n- Point about ${categoryName}`,
+    tags: [],
+  };
+}
+
+test("generates a category reference card only once, and skips it on later batches", async ({
   page,
 }) => {
   const runId = Date.now();
@@ -58,12 +58,15 @@ test("generates, previews, selects, and saves a batch, then generates another", 
   await expect(page.getByRole("heading", { name: existingTopicTitle })).toBeVisible();
   await page.waitForLoadState("networkidle");
 
+  // First batch: category has no reference card yet, so the mock response
+  // includes one.
   await setNextGroqResponse(MOCK_PORT, {
     topics: [
-      mockPair(existingTopicTitle), // exact duplicate of the topic just created
-      mockPair(`E2E Circuit Breaker Pattern ${runId}`),
-      mockPair(`E2E Saga Pattern ${runId}`, [`E2E Circuit Breaker Pattern ${runId}`]),
+      mockTopic(existingTopicTitle), // exact duplicate of the topic just created
+      mockTopic(`E2E Circuit Breaker Pattern ${runId}`),
+      mockTopic(`E2E Saga Pattern ${runId}`, [`E2E Circuit Breaker Pattern ${runId}`]),
     ],
+    categoryReferenceCard: mockReferenceCard(categoryName),
   });
 
   await page.locator("aside").getByRole("button", { name: "AI Generate Topics" }).click();
@@ -72,23 +75,24 @@ test("generates, previews, selects, and saves a batch, then generates another", 
   await page.getByRole("button", { name: "Generate Next 10" }).click();
 
   await expect(page.getByText("3 new topics suggested.")).toBeVisible();
-  await expect(
-    page.getByText("Each includes a companion Reference Card"),
-  ).toBeVisible();
   await expect(page.getByText("Exact duplicate")).toBeVisible();
+  await expect(page.getByText(`${categoryName} — Reference Card`)).toBeVisible();
+  await expect(page.getByText("Category Reference Card")).toBeVisible();
 
   const duplicateCheckbox = page.locator(`#candidate-0`);
   await expect(duplicateCheckbox).not.toBeChecked();
   const sagaCheckbox = page.locator(`li:has-text("E2E Saga Pattern ${runId}") input[type="checkbox"]`);
   await expect(sagaCheckbox).toBeChecked();
   await sagaCheckbox.uncheck();
+  const referenceCardCheckbox = page.locator("#category-reference-card");
+  await expect(referenceCardCheckbox).toBeChecked();
 
-  await expect(page.getByRole("button", { name: "Add Selected (1)" })).toBeVisible();
-  await page.getByRole("button", { name: "Add Selected (1)" }).click();
+  await expect(page.getByRole("button", { name: "Add Selected (2)" })).toBeVisible();
+  await page.getByRole("button", { name: "Add Selected (2)" }).click();
 
   await expect(page.getByText("Topics Added")).toBeVisible();
   await expect(page.getByText("1 topic added")).toBeVisible();
-  await expect(page.getByText("Plus 1 companion Reference Card")).toBeVisible();
+  await expect(page.getByText("Plus the category Reference Card.")).toBeVisible();
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.waitForLoadState("networkidle");
 
@@ -96,15 +100,18 @@ test("generates, previews, selects, and saves a batch, then generates another", 
     page.getByText(`E2E Circuit Breaker Pattern ${runId}`).first(),
   ).toBeVisible();
   await expect(page.getByText(`E2E Saga Pattern ${runId}`)).toHaveCount(0);
+  await expect(page.getByText(`${categoryName} — Reference Card`).first()).toBeVisible();
 
-  // Generate again for the same category, considering what was just added.
+  // Generate again for the same category: it already has a reference card
+  // now, so the mock response omits one and the preview shouldn't offer it.
   await setNextGroqResponse(MOCK_PORT, {
-    topics: [mockPair(`E2E Bulkhead Pattern ${runId}`)],
+    topics: [mockTopic(`E2E Bulkhead Pattern ${runId}`)],
   });
   await page.locator("aside").getByRole("button", { name: "AI Generate Topics" }).click();
   await page.getByLabel("Category", { exact: true }).selectOption({ label: categoryName });
   await page.getByRole("button", { name: "Generate Next 10" }).click();
   await expect(page.getByText("1 new topic suggested.")).toBeVisible();
+  await expect(page.getByText("Category Reference Card")).toHaveCount(0);
   await page.getByRole("button", { name: /Add Selected/ }).click();
   await expect(page.getByText("Topics Added")).toBeVisible();
   await expect(page.getByText("1 topic added")).toBeVisible();
@@ -124,9 +131,10 @@ test("shows a clear error and stays on the config screen when the AI response is
   await page.waitForLoadState("networkidle");
   await page.reload();
 
-  // Malformed: referenceCard missing entirely.
+  // Malformed: this fresh category has no reference card yet, so one is
+  // required in the response — but the mock response omits it.
   await setNextGroqResponse(MOCK_PORT, {
-    topics: [{ topic: mockPair(`E2E Broken ${runId}`).topic }],
+    topics: [mockTopic(`E2E Broken ${runId}`)],
   });
 
   await page.locator("aside").getByRole("button", { name: "AI Generate Topics" }).click();

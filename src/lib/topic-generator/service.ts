@@ -1,15 +1,31 @@
 import { prisma } from "@/lib/db";
+import { slugify } from "@/lib/slug";
 import { getAIProvider } from "@/lib/ai";
 import type { AIProvider } from "@/lib/ai/provider";
 import { buildTopicGenerationMessages } from "./prompt";
 import { topicBatchResponseSchema } from "./schema";
-import { classifyDuplicate, isReferenceCardTitle } from "./similarity";
-import { BATCH_SIZE, type TopicCandidate } from "./types";
+import {
+  REFERENCE_CARD_SUFFIX,
+  classifyDuplicate,
+  isReferenceCardTitle,
+} from "./similarity";
+import {
+  BATCH_SIZE,
+  type GeneratedCategoryReferenceCard,
+  type TopicCandidate,
+} from "./types";
 
 const GENERIC_ERROR = "Unable to generate topics right now. Please try again.";
 
 export type GenerateTopicBatchServiceResult =
-  | { ok: true; candidates: TopicCandidate[]; provider: string; model: string }
+  | {
+      ok: true;
+      candidates: TopicCandidate[];
+      categoryReferenceCard: GeneratedCategoryReferenceCard | null;
+      categoryReferenceCardTitle: string;
+      provider: string;
+      model: string;
+    }
   | { ok: false; error: string };
 
 export async function generateTopicBatch(
@@ -21,12 +37,16 @@ export async function generateTopicBatch(
   });
   if (!category) return { ok: false, error: "Category not found." };
 
-  const [categoryTopics, allTopics] = await Promise.all([
+  const categoryReferenceCardTitle = `${category.name}${REFERENCE_CARD_SUFFIX}`;
+  const categoryReferenceCardSlug = slugify(categoryReferenceCardTitle);
+
+  const [categoryTopics, allTopics, existingCategoryReferenceCard] = await Promise.all([
     prisma.topic.findMany({
       where: { categoryId: params.categoryId },
       select: { title: true },
     }),
     prisma.topic.findMany({ select: { title: true } }),
+    prisma.topic.findUnique({ where: { slug: categoryReferenceCardSlug } }),
   ]);
 
   const existingCategoryTitles = categoryTopics
@@ -35,6 +55,7 @@ export async function generateTopicBatch(
   const allExistingTitles = allTopics
     .map((topic) => topic.title)
     .filter((title) => !isReferenceCardTitle(title));
+  const needsCategoryReferenceCard = !existingCategoryReferenceCard;
 
   let provider: AIProvider;
   try {
@@ -52,6 +73,7 @@ export async function generateTopicBatch(
     existingTitles: existingCategoryTitles,
     batchSize: BATCH_SIZE,
     excludeTitles: params.excludeTitles,
+    includeCategoryReferenceCard: needsCategoryReferenceCard,
   });
 
   let raw: unknown;
@@ -65,7 +87,9 @@ export async function generateTopicBatch(
     return { ok: false, error: GENERIC_ERROR };
   }
 
-  const parsed = topicBatchResponseSchema(BATCH_SIZE).safeParse(raw);
+  const parsed = topicBatchResponseSchema(BATCH_SIZE, needsCategoryReferenceCard).safeParse(
+    raw,
+  );
   if (!parsed.success) {
     console.error(
       "Topic generation returned an invalid response:",
@@ -74,10 +98,10 @@ export async function generateTopicBatch(
     return { ok: false, error: GENERIC_ERROR };
   }
 
-  const candidates: TopicCandidate[] = parsed.data.topics.map((pair) => {
-    const match = classifyDuplicate(pair.topic.title, allExistingTitles);
+  const candidates: TopicCandidate[] = parsed.data.topics.map((topic) => {
+    const match = classifyDuplicate(topic.title, allExistingTitles);
     return {
-      ...pair,
+      ...topic,
       duplicateStatus: match.status,
       matchedTitle: match.matchedTitle,
     };
@@ -86,6 +110,8 @@ export async function generateTopicBatch(
   return {
     ok: true,
     candidates,
+    categoryReferenceCard: parsed.data.categoryReferenceCard ?? null,
+    categoryReferenceCardTitle,
     provider: provider.name,
     model: provider.model,
   };

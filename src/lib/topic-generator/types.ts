@@ -9,25 +9,17 @@ export type GeneratedTopicDraft = {
   relatedTopics: string[];
 };
 
-export type GeneratedReferenceCardDraft = {
+// One Reference Card per category, not per topic — a category-wide
+// quick-recall index rather than a per-article cheat sheet.
+export type GeneratedCategoryReferenceCard = {
   summary: string;
   content: string;
   tags: string[];
-  relatedTopics: string[];
-};
-
-export type GeneratedTopicPair = {
-  topic: GeneratedTopicDraft;
-  referenceCard: GeneratedReferenceCardDraft;
-};
-
-export type GeneratedTopicBatch = {
-  topics: GeneratedTopicPair[];
 };
 
 export type DuplicateStatus = "none" | "exact" | "similar";
 
-export type TopicCandidate = GeneratedTopicPair & {
+export type TopicCandidate = GeneratedTopicDraft & {
   duplicateStatus: DuplicateStatus;
   matchedTitle?: string;
 };
@@ -44,6 +36,9 @@ export type GenerateTopicBatchResult =
       success: true;
       candidates: TopicCandidate[];
       requestedCount: number;
+      // Only present when the category doesn't already have one.
+      categoryReferenceCard: GeneratedCategoryReferenceCard | null;
+      categoryReferenceCardTitle: string;
     };
 
 export type SaveGeneratedTopicsResult =

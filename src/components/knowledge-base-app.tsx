@@ -66,7 +66,11 @@ import {
   type QuizHistoryEntry,
   type SubmitAnswerResult,
 } from "@/lib/quiz/types";
-import { BATCH_SIZE, type TopicCandidate } from "@/lib/topic-generator/types";
+import {
+  BATCH_SIZE,
+  type GeneratedCategoryReferenceCard,
+  type TopicCandidate,
+} from "@/lib/topic-generator/types";
 
 type Topic = DashboardData["topics"][number];
 type Category = DashboardData["categories"][number];
@@ -1024,10 +1028,15 @@ function TopicGeneratorFlow({
   );
   const [candidates, setCandidates] = useState<TopicCandidate[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
+  const [categoryReferenceCard, setCategoryReferenceCard] =
+    useState<GeneratedCategoryReferenceCard | null>(null);
+  const [categoryReferenceCardTitle, setCategoryReferenceCardTitle] = useState("");
+  const [referenceCardSelected, setReferenceCardSelected] = useState(false);
   const [seenTitles, setSeenTitles] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [savedSummary, setSavedSummary] = useState<{
-    addedCount: number;
+    addedTopicCount: number;
+    referenceCardAdded: boolean;
     skippedDuplicateTitles: string[];
   } | null>(null);
 
@@ -1051,9 +1060,12 @@ function TopicGeneratorFlow({
             .map(([, index]) => index),
         ),
       );
+      setCategoryReferenceCard(result.categoryReferenceCard);
+      setCategoryReferenceCardTitle(result.categoryReferenceCardTitle);
+      setReferenceCardSelected(result.categoryReferenceCard !== null);
       setSeenTitles((previous) => [
         ...previous,
-        ...result.candidates.map((candidate) => candidate.topic.title),
+        ...result.candidates.map((candidate) => candidate.title),
       ]);
       setStep("preview");
     });
@@ -1070,19 +1082,30 @@ function TopicGeneratorFlow({
 
   function saveSelected() {
     const selected = candidates.filter((_, index) => selectedIndices.has(index));
-    if (selected.length === 0) return;
+    const includeReferenceCard = referenceCardSelected && categoryReferenceCard !== null;
+    if (selected.length === 0 && !includeReferenceCard) return;
     setError("");
     startTransition(async () => {
       const result = await saveGeneratedTopics(
         categoryId,
-        selected.map(({ topic, referenceCard }) => ({ topic, referenceCard })),
+        selected.map(({ title, summary, content, tags, relatedTopics }) => ({
+          title,
+          summary,
+          content,
+          tags,
+          relatedTopics,
+        })),
+        includeReferenceCard ? categoryReferenceCard : null,
       );
       if ("error" in result) {
         setError(result.error);
         return;
       }
       setSavedSummary({
-        addedCount: selected.length - result.skippedDuplicateTitles.length,
+        addedTopicCount: selected.length - result.skippedDuplicateTitles.length,
+        referenceCardAdded:
+          includeReferenceCard &&
+          !result.skippedDuplicateTitles.includes(categoryReferenceCardTitle),
         skippedDuplicateTitles: result.skippedDuplicateTitles,
       });
       setStep("done");
@@ -1093,6 +1116,9 @@ function TopicGeneratorFlow({
   function generateAnotherBatch() {
     setCandidates([]);
     setSelectedIndices(new Set());
+    setCategoryReferenceCard(null);
+    setCategoryReferenceCardTitle("");
+    setReferenceCardSelected(false);
     setSavedSummary(null);
     setStep("config");
   }
@@ -1151,14 +1177,12 @@ function TopicGeneratorFlow({
         <p className="text-sm text-muted-foreground">
           {candidates.length < BATCH_SIZE
             ? `Coverage for this category is becoming comprehensive — only ${candidates.length} new topic${candidates.length === 1 ? "" : "s"} suggested.`
-            : `${candidates.length} new topics suggested.`}{" "}
-          Each includes a companion Reference Card, so adding one topic adds
-          two entries.
+            : `${candidates.length} new topics suggested.`}
         </p>
         <ul className="max-h-[50vh] space-y-3 overflow-y-auto">
           {candidates.map((candidate, index) => (
             <li
-              key={candidate.topic.title}
+              key={candidate.title}
               className="rounded-md border border-border p-3"
             >
               <div className="flex items-start gap-3">
@@ -1171,7 +1195,7 @@ function TopicGeneratorFlow({
                 />
                 <label htmlFor={`candidate-${index}`} className="flex-1 cursor-pointer">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{candidate.topic.title}</span>
+                    <span className="font-semibold">{candidate.title}</span>
                     {candidate.duplicateStatus === "exact" && (
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
                         Exact duplicate
@@ -1184,7 +1208,7 @@ function TopicGeneratorFlow({
                     )}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {candidate.topic.summary}
+                    {candidate.summary}
                   </p>
                   {candidate.matchedTitle && (
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -1195,6 +1219,33 @@ function TopicGeneratorFlow({
               </div>
             </li>
           ))}
+          {categoryReferenceCard && (
+            <li className="rounded-md border border-accent/40 bg-accent/5 p-3">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="category-reference-card"
+                  checked={referenceCardSelected}
+                  onChange={() => setReferenceCardSelected((value) => !value)}
+                  className="mt-1 h-4 w-4 accent-accent"
+                />
+                <label
+                  htmlFor="category-reference-card"
+                  className="flex-1 cursor-pointer"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{categoryReferenceCardTitle}</span>
+                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
+                      Category Reference Card
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {categoryReferenceCard.summary}
+                  </p>
+                </label>
+              </div>
+            </li>
+          )}
         </ul>
         {error && (
           <p
@@ -1220,10 +1271,19 @@ function TopicGeneratorFlow({
           <Button
             type="button"
             onClick={saveSelected}
-            disabled={selectedIndices.size === 0 || isPending}
+            disabled={
+              (selectedIndices.size === 0 &&
+                !(referenceCardSelected && categoryReferenceCard)) ||
+              isPending
+            }
             aria-busy={isPending}
           >
-            {isPending ? "Adding..." : `Add Selected (${selectedIndices.size})`}
+            {isPending
+              ? "Adding..."
+              : `Add Selected (${
+                  selectedIndices.size +
+                  (referenceCardSelected && categoryReferenceCard ? 1 : 0)
+                })`}
           </Button>
         </div>
       </div>
@@ -1237,14 +1297,14 @@ function TopicGeneratorFlow({
           Topics Added
         </p>
         <p className="font-[var(--font-display)] text-3xl font-semibold">
-          {savedSummary.addedCount} topic{savedSummary.addedCount === 1 ? "" : "s"}{" "}
-          added
+          {savedSummary.addedTopicCount} topic
+          {savedSummary.addedTopicCount === 1 ? "" : "s"} added
         </p>
-        <p className="text-sm text-muted-foreground">
-          Plus {savedSummary.addedCount} companion Reference Card
-          {savedSummary.addedCount === 1 ? "" : "s"} — {savedSummary.addedCount * 2}{" "}
-          entries in total.
-        </p>
+        {savedSummary.referenceCardAdded && (
+          <p className="text-sm text-muted-foreground">
+            Plus the category Reference Card.
+          </p>
+        )}
         {savedSummary.skippedDuplicateTitles.length > 0 && (
           <p className="text-sm text-muted-foreground">
             Skipped {savedSummary.skippedDuplicateTitles.length} already in the

@@ -181,3 +181,30 @@ test("confirms before leaving an in-progress quiz, and resumes it later from the
   await expect(page.getByText("Quiz Complete")).toBeVisible();
   await expect(page.getByText("Score: 5 / 5")).toBeVisible();
 });
+
+test("confirms before leaving an in-progress quiz via sidebar navigation, not just the pane's own Exit button", async ({
+  page,
+}) => {
+  const runId = Date.now();
+  const topicTitle = `E2E Quiz Sidebar Nav ${runId}`;
+  await createTopicWithContent(page, topicTitle);
+  await setNextGroqResponse(MOCK_PORT, { questions: MOCK_QUESTIONS });
+
+  await page.getByRole("button", { name: "Quiz Me" }).click();
+  await page.getByRole("button", { name: "5", exact: true }).click();
+  await page.getByRole("button", { name: "Start Quiz" }).click();
+  await expect(page.getByText("Question 1 of 5")).toBeVisible();
+
+  // Clicking a category in the always-visible sidebar mid-quiz must confirm
+  // before leaving, the same as the pane's own Exit Quiz button.
+  const automationCategory = page.locator('button[title="Automation"]');
+  await automationCategory.click();
+  await expect(page.getByRole("heading", { name: "Leave quiz?" })).toBeVisible();
+  await page.getByRole("button", { name: "Stay" }).click();
+  await expect(page.getByRole("heading", { name: "Leave quiz?" })).not.toBeVisible();
+  await expect(page.getByText("Question 1 of 5")).toBeVisible();
+
+  await automationCategory.click();
+  await page.getByRole("button", { name: "Leave Quiz" }).click();
+  await expect(page.getByRole("button", { name: "Quiz Me" })).toBeVisible();
+});

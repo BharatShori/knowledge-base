@@ -665,10 +665,12 @@ function QuizPane({
   topics,
   prefillTopicId,
   onExit,
+  onProgressChange,
 }: {
   topics: Topic[];
   prefillTopicId: string | null;
   onExit: () => void;
+  onProgressChange: (inProgress: boolean) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [step, setStep] = useState<QuizPaneStep>("landing");
@@ -727,6 +729,13 @@ function QuizPane({
   const currentQuestion = questions[currentIndex];
   const isLastQuestion = currentIndex === questions.length - 1;
   const isQuizInProgress = step === "question" || step === "answered";
+
+  // Lets the parent guard its own navigation (sidebar links) with the same
+  // leave-confirmation this pane uses for its own Exit Quiz button.
+  useEffect(() => {
+    onProgressChange(isQuizInProgress);
+  }, [isQuizInProgress, onProgressChange]);
+
   const inProgressHistory = history.filter((entry) => entry.completedAt === null);
   const completedHistory = history.filter((entry) => entry.completedAt !== null);
   const filteredTopics = filterTopics(topics, topicSearch, null, null).slice(0, 50);
@@ -1671,6 +1680,10 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
   const [quizPrefillTopicId, setQuizPrefillTopicId] = useState<string | null>(
     null,
   );
+  const [quizInProgress, setQuizInProgress] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<
+    (() => void) | null
+  >(null);
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(
     data.topics[0]?.id ?? null,
   );
@@ -1789,20 +1802,39 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
     setDialog("topic");
   }
 
+  // Leaving the quiz pane for the browse view (via the sidebar) should
+  // confirm first if a quiz is in progress, same as the pane's own Exit
+  // Quiz button. Navigation actions that don't touch mainView (e.g.
+  // clicks that only happen inside the browse view itself) skip the guard
+  // because mainView is already "browse" by the time they run.
+  function guardedNavigate(action: () => void) {
+    if (mainView === "quiz" && quizInProgress) {
+      setPendingNavigation(() => action);
+      return;
+    }
+    action();
+  }
+
   function selectTopic(topicId: string) {
-    setSelectedTopicId(topicId);
-    setOverviewCollapsed(true);
+    guardedNavigate(() => {
+      setMainView("browse");
+      setSelectedTopicId(topicId);
+      setOverviewCollapsed(true);
+    });
   }
 
   function selectCategory(categoryId: string) {
-    const firstTopic = data.topics.find(
-      (topic) => topic.categoryId === categoryId,
-    );
-    setCategoryFilter(categoryId);
-    setTagFilter(null);
-    setSearch("");
-    setSelectedTopicId(firstTopic?.id ?? null);
-    setOverviewCollapsed(true);
+    guardedNavigate(() => {
+      const firstTopic = data.topics.find(
+        (topic) => topic.categoryId === categoryId,
+      );
+      setMainView("browse");
+      setCategoryFilter(categoryId);
+      setTagFilter(null);
+      setSearch("");
+      setSelectedTopicId(firstTopic?.id ?? null);
+      setOverviewCollapsed(true);
+    });
   }
 
   const selectedTopicIndex = selectedTopic
@@ -1989,13 +2021,15 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
               </p>
             )}
             <button
-              onClick={() => {
-                setMainView("browse");
-                setCategoryFilter(null);
-                setTagFilter(null);
-                setSearch("");
-                setOverviewCollapsed(false);
-              }}
+              onClick={() =>
+                guardedNavigate(() => {
+                  setMainView("browse");
+                  setCategoryFilter(null);
+                  setTagFilter(null);
+                  setSearch("");
+                  setOverviewCollapsed(false);
+                })
+              }
               className={`flex w-full items-center gap-3 rounded-md py-2.5 text-left text-sm font-semibold ${sidebarCollapsed ? "justify-center px-1" : "px-3"} ${mainView === "browse" && !categoryFilter && !tagFilter && !search ? "bg-surface text-accent shadow-sm" : "text-muted-foreground hover:bg-surface"}`}
               title="Dashboard"
             >
@@ -2202,6 +2236,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 topics={data.topics}
                 prefillTopicId={quizPrefillTopicId}
                 onExit={() => setMainView("browse")}
+                onProgressChange={setQuizInProgress}
               />
             </div>
           )}
@@ -2779,6 +2814,37 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                 ))}
               </div>
             </fieldset>
+          </div>
+        </DialogShell>
+      )}
+      {pendingNavigation && (
+        <DialogShell
+          title="Leave quiz?"
+          onClose={() => setPendingNavigation(null)}
+        >
+          <div className="space-y-5">
+            <p className="text-sm leading-6 text-muted-foreground">
+              Your progress is saved. You can resume this quiz later from the
+              quiz history list.
+            </p>
+            <div className="flex justify-end gap-3 border-t border-border pt-5">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPendingNavigation(null)}
+              >
+                Stay
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  pendingNavigation();
+                  setPendingNavigation(null);
+                }}
+              >
+                Leave Quiz
+              </Button>
+            </div>
           </div>
         </DialogShell>
       )}

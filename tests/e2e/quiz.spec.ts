@@ -23,6 +23,22 @@ const MOCK_QUESTIONS = Array.from({ length: 5 }, (_, index) => ({
   explanation: `Alpha is correct for question ${index + 1}.`,
 }));
 
+// The radio inputs are visually hidden (sr-only) behind their pill-styled
+// <label>; clicking the label is what real users and Playwright's
+// actionability checks can reliably target (the tiny clipped <input>
+// itself sits behind other elements at its computed position).
+function selectQuizOption(
+  page: import("@playwright/test").Page,
+  groupLegend: string,
+  optionLabel: string,
+) {
+  return page
+    .locator("fieldset")
+    .filter({ hasText: groupLegend })
+    .getByText(optionLabel, { exact: true })
+    .click();
+}
+
 async function createTopicWithContent(
   page: import("@playwright/test").Page,
   title: string,
@@ -52,17 +68,15 @@ test("completes the full quiz flow: config, questions, results, review, and hist
 
   await page.getByRole("button", { name: "Quiz Me" }).click();
   await expect(page.getByText("Number of Questions")).toBeVisible();
-  await expect(page.getByRole("button", { name: "10", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await expect(page.getByRole("button", { name: "practitioner", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(
+    page.getByRole("radio", { name: "10", exact: true }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("radio", { name: "practitioner", exact: true }),
+  ).toBeChecked();
 
-  await page.getByRole("button", { name: "5", exact: true }).click();
-  await page.getByRole("button", { name: "foundation", exact: true }).click();
+  await selectQuizOption(page, "Number of Questions", "5");
+  await selectQuizOption(page, "Difficulty", "foundation");
   await page.getByRole("button", { name: "Start Quiz" }).click();
 
   await expect(page.getByText("Question 1 of 5")).toBeVisible();
@@ -120,7 +134,7 @@ test("shows a clear error and stays on the config screen when the AI response is
   await setNextGroqResponse(MOCK_PORT, { questions: MOCK_QUESTIONS.slice(0, 4) });
 
   await page.getByRole("button", { name: "Quiz Me" }).click();
-  await page.getByRole("button", { name: "5", exact: true }).click();
+  await selectQuizOption(page, "Number of Questions", "5");
   await page.getByRole("button", { name: "Start Quiz" }).click();
 
   await expect(
@@ -143,8 +157,8 @@ test("confirms before leaving an in-progress quiz, and resumes it later from the
   await expect(page.getByText("Choose a topic")).toBeVisible();
   await page.locator("#quiz-topic-search").fill(topicTitle);
   await page.getByRole("main").getByRole("button", { name: topicTitle }).click();
-  await page.getByRole("button", { name: "5", exact: true }).click();
-  await page.getByRole("button", { name: "foundation", exact: true }).click();
+  await selectQuizOption(page, "Number of Questions", "5");
+  await selectQuizOption(page, "Difficulty", "foundation");
   await page.getByRole("button", { name: "Start Quiz" }).click();
   await expect(page.getByText("Question 1 of 5")).toBeVisible();
 
@@ -191,7 +205,7 @@ test("confirms before leaving an in-progress quiz via sidebar navigation, not ju
   await setNextGroqResponse(MOCK_PORT, { questions: MOCK_QUESTIONS });
 
   await page.getByRole("button", { name: "Quiz Me" }).click();
-  await page.getByRole("button", { name: "5", exact: true }).click();
+  await selectQuizOption(page, "Number of Questions", "5");
   await page.getByRole("button", { name: "Start Quiz" }).click();
   await expect(page.getByText("Question 1 of 5")).toBeVisible();
 

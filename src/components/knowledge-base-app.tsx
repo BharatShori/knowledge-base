@@ -956,29 +956,34 @@ function QuizPane({
               </div>
             )}
 
-            <div>
-              <p className="text-sm font-semibold">Scope</p>
+            <fieldset>
+              <legend className="text-sm font-semibold">Scope</legend>
               <div className="mt-2 flex gap-2">
                 {SCOPE_OPTIONS.map((option) => (
-                  <button
+                  <label
                     key={option}
-                    type="button"
-                    aria-pressed={scope === option}
-                    onClick={() => {
-                      setScope(option);
-                      setSelectedTopicIds([]);
-                    }}
-                    className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold transition-colors ${
+                    className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-center text-sm font-semibold transition-colors ${
                       scope === option
                         ? "border-accent bg-accent/10 text-accent"
                         : "border-border text-muted-foreground hover:border-accent"
                     }`}
                   >
+                    <input
+                      type="radio"
+                      name="quiz-scope"
+                      value={option}
+                      checked={scope === option}
+                      onChange={() => {
+                        setScope(option);
+                        setSelectedTopicIds([]);
+                      }}
+                      className="sr-only"
+                    />
                     {SCOPE_LABELS[option]}
-                  </button>
+                  </label>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
             {scope === "holistic" ? (
               <p className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
@@ -1045,46 +1050,58 @@ function QuizPane({
               </div>
             )}
 
-            <div>
-              <p className="text-sm font-semibold">Number of Questions</p>
+            <fieldset>
+              <legend className="text-sm font-semibold">
+                Number of Questions
+              </legend>
               <div className="mt-2 flex gap-2">
                 {QUESTION_COUNT_OPTIONS.map((count) => (
-                  <button
+                  <label
                     key={count}
-                    type="button"
-                    aria-pressed={questionCount === count}
-                    onClick={() => setQuestionCount(count)}
-                    className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold transition-colors ${
+                    className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-center text-sm font-semibold transition-colors ${
                       questionCount === count
                         ? "border-accent bg-accent/10 text-accent"
                         : "border-border text-muted-foreground hover:border-accent"
                     }`}
                   >
+                    <input
+                      type="radio"
+                      name="quiz-question-count"
+                      value={count}
+                      checked={questionCount === count}
+                      onChange={() => setQuestionCount(count)}
+                      className="sr-only"
+                    />
                     {count}
-                  </button>
+                  </label>
                 ))}
               </div>
-            </div>
-            <div>
-              <p className="text-sm font-semibold">Difficulty</p>
+            </fieldset>
+            <fieldset>
+              <legend className="text-sm font-semibold">Difficulty</legend>
               <div className="mt-2 flex gap-2">
                 {DIFFICULTY_OPTIONS.map((level) => (
-                  <button
+                  <label
                     key={level}
-                    type="button"
-                    aria-pressed={difficulty === level}
-                    onClick={() => setDifficulty(level)}
-                    className={`flex-1 rounded-md border px-3 py-2 text-sm font-semibold capitalize transition-colors ${
+                    className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-center text-sm font-semibold capitalize transition-colors ${
                       difficulty === level
                         ? "border-accent bg-accent/10 text-accent"
                         : "border-border text-muted-foreground hover:border-accent"
                     }`}
                   >
+                    <input
+                      type="radio"
+                      name="quiz-difficulty"
+                      value={level}
+                      checked={difficulty === level}
+                      onChange={() => setDifficulty(level)}
+                      className="sr-only"
+                    />
                     {level}
-                  </button>
+                  </label>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
             {error && (
               <p

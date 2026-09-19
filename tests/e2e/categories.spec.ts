@@ -26,7 +26,7 @@ test("creates and deletes an empty category", async ({ page }) => {
   ).not.toBeVisible();
 });
 
-test("explains why a category containing topics cannot be deleted", async ({
+test("deletes a category and its topics once the user confirms", async ({
   page,
 }) => {
   const categoryName = `E2E Used Category ${Date.now()}`;
@@ -61,7 +61,25 @@ test("explains why a category containing topics cannot be deleted", async ({
     .getByRole("button", { name: "Manage categories" })
     .click();
   await page.getByRole("button", { name: `Delete ${categoryName}` }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toHaveText(
-    "Category cannot be deleted because it contains topics.",
-  );
+  await expect(
+    page.getByRole("heading", { name: "Delete category?" }),
+  ).toBeVisible();
+  const warning = page.getByText(/This will permanently delete/);
+  await expect(warning).toContainText(categoryName);
+  await expect(warning).toContainText("1 topic");
+
+  // Cancel first to confirm nothing is deleted yet.
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByText(categoryName).first()).toBeVisible();
+
+  await page.getByRole("button", { name: `Delete ${categoryName}` }).click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("heading", { name: topicName })).not.toBeVisible();
+
+  await page
+    .locator("aside")
+    .getByRole("button", { name: "Manage categories" })
+    .click();
+  await expect(page.getByText(categoryName)).not.toBeVisible();
 });

@@ -25,7 +25,7 @@ model Topic {
   categoryId     String
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
-  category       Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category       Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   tags           TopicTag[]
   sources        Source[]
   relatedFrom    TopicRelation[] @relation("relatedFrom")

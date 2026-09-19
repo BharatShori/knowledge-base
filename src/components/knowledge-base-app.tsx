@@ -88,6 +88,7 @@ type Dialog =
   | "manage"
   | "import"
   | "delete-topic"
+  | "delete-category"
   | "appearance"
   | "generate-topics"
   | null;
@@ -1722,6 +1723,9 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
   const [editingCategory, setEditingCategory] = useState<
     Category | undefined
   >();
+  const [deletingCategory, setDeletingCategory] = useState<
+    Category | undefined
+  >();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
@@ -2756,7 +2760,15 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
                         variant="ghost"
                         size="icon"
                         aria-label={`Delete ${category.name}`}
-                        onClick={() => removeCategory(category)}
+                        onClick={() => {
+                          if (category.topicCount > 0) {
+                            setCategoryError("");
+                            setDeletingCategory(category);
+                            setDialog("delete-category");
+                          } else {
+                            removeCategory(category);
+                          }
+                        }}
                         disabled={isPending}
                         aria-busy={isPending}
                       >
@@ -2807,6 +2819,53 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
             </Button>
             <Button
               onClick={removeTopic}
+              disabled={isPending}
+              aria-busy={isPending}
+            >
+              {isPending ? "Deleting..." : "Confirm delete"}
+            </Button>
+          </div>
+        </DialogShell>
+      )}
+      {dialog === "delete-category" && deletingCategory && (
+        <DialogShell
+          title="Delete category?"
+          onClose={() => {
+            setCategoryError("");
+            setDialog("manage");
+          }}
+        >
+          <div className="space-y-3">
+            {categoryError && (
+              <p
+                role="alert"
+                className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+              >
+                {categoryError}
+              </p>
+            )}
+            <p className="text-sm leading-6 text-muted-foreground">
+              This will permanently delete{" "}
+              <strong className="text-foreground">
+                {deletingCategory.name}
+              </strong>{" "}
+              and its {deletingCategory.topicCount}{" "}
+              {deletingCategory.topicCount === 1 ? "topic" : "topics"}. This
+              cannot be undone.
+            </p>
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCategoryError("");
+                setDialog("manage");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => removeCategory(deletingCategory)}
               disabled={isPending}
               aria-busy={isPending}
             >

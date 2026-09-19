@@ -38,10 +38,9 @@ export async function updateCategory(id: string, formData: FormData) {
 }
 
 export async function deleteCategory(id: string) {
-  const topicCount = await prisma.topic.count({ where: { categoryId: id } });
-  if (topicCount > 0)
-    return { error: "Category cannot be deleted because it contains topics." };
   try {
+    // Cascades: deleting a category also deletes its topics (and each
+    // topic's tags/relations/sources), per the schema's onDelete: Cascade.
     await prisma.category.delete({ where: { id } });
     revalidatePath("/");
     return { success: true };

@@ -5,11 +5,17 @@ const DEFAULT_GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 const DEFAULT_MODEL = "openai/gpt-oss-120b";
 const REQUEST_TIMEOUT_MS = 90_000;
 // gpt-oss-120b is a reasoning model: it spends part of its output budget on
-// hidden reasoning tokens before the actual JSON answer. Without an explicit
-// ceiling, Groq's default is too small for larger payloads (e.g. a 10-topic
-// batch) and the request fails outright with a 400 "max completion tokens
-// reached before generating a valid document" — not a timeout or rate limit.
-const MAX_COMPLETION_TOKENS = 32_000;
+// hidden reasoning tokens before the actual JSON answer, and how much it
+// spends is non-deterministic — the same prompt can take anywhere from ~2k
+// to 30k+ completion tokens between runs (observed directly; larger batches
+// and empty-category requests, which get less "stay concise" pressure from
+// existing-topic context, are more likely to run long). Without a ceiling
+// at or near the model's real max, a verbose run fails outright with a 400
+// "max completion tokens reached before generating a valid document" — easy
+// to mistake for a timeout or rate limit. Groq bills actual tokens used, not
+// this ceiling, so there's no cost to setting it to the model's true max
+// (65536 for gpt-oss-120b, per GET /openai/v1/models/openai/gpt-oss-120b).
+const MAX_COMPLETION_TOKENS = 65_536;
 
 export class GroqProvider implements AIProvider {
   readonly name = "groq";
@@ -34,17 +40,34 @@ export class GroqProvider implements AIProvider {
 
   async generateJson(messages: ChatMessage[]): Promise<unknown> {
     let content: string | null | undefined;
-    try {
-      const completion = await this.client.chat.completions.create({
-        model: this.model,
-        messages,
-        response_format: { type: "json_object" },
-        temperature: 0.4,
-        max_completion_tokens: MAX_COMPLETION_TOKENS,
-      });
-      content = completion.choices[0]?.message?.content;
-    } catch (error) {
-      throw new Error(normalizeGroqError(error));
+    // How verbose the model gets (reasoning + content) is non-deterministic,
+    // so a run that exhausts the token ceiling isn't necessarily a sign the
+    // next attempt will too. One retry is cheap insurance against an
+    // otherwise-avoidable failure, without masking a genuine, persistent
+    // problem (a second failure still surfaces as a real error).
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const completion = await this.client.chat.completions.create({
+          model: this.model,
+          messages,
+          response_format: { type: "json_object" },
+          temperature: 0.4,
+          max_completion_tokens: MAX_COMPLETION_TOKENS,
+        });
+        content = completion.choices[0]?.message?.content;
+        break;
+      } catch (error) {
+        if (attempt < maxAttempts && isTokenBudgetError(error)) {
+          console.warn(
+            "Groq ran out of output tokens; retrying once (attempt %d of %d).",
+            attempt + 1,
+            maxAttempts,
+          );
+          continue;
+        }
+        throw new Error(normalizeGroqError(error));
+      }
     }
 
     if (!content) {
@@ -56,6 +79,10 @@ export class GroqProvider implements AIProvider {
       throw new Error("Groq returned a response that was not valid JSON.");
     }
   }
+}
+
+function isTokenBudgetError(error: unknown): boolean {
+  return error instanceof OpenAI.APIError && error.code === "json_validate_failed";
 }
 
 function normalizeGroqError(error: unknown): string {

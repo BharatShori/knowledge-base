@@ -95,11 +95,18 @@ test("completes the full quiz flow: config, questions, results, review, and hist
   await expect(page.getByText("Your answer: Beta")).toHaveCount(2);
   await expect(page.getByText("Correct answer: Alpha")).toHaveCount(2);
 
-  await page.getByRole("button", { name: "Retake Quiz" }).click();
-  await expect(page.getByText("Previous attempts")).toBeVisible();
-  await expect(page.getByText(/60% · foundation · 5 questions/)).toBeVisible();
+  await page.getByRole("button", { name: "New Quiz" }).click();
+  await expect(page.getByText("Number of Questions")).toBeVisible();
+  await page.getByRole("button", { name: /View quiz history/ }).click();
+  const historyRow = page
+    .locator("li")
+    .filter({ hasText: topicTitle })
+    .filter({ hasText: "60%" });
+  await expect(historyRow).toBeVisible();
+  await expect(historyRow).toContainText("foundation");
 
-  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Exit Quiz" }).click();
+  await expect(page.getByRole("heading", { name: topicTitle })).toBeVisible();
 });
 
 test("shows a clear error and stays on the config screen when the AI response is malformed", async ({
@@ -120,4 +127,57 @@ test("shows a clear error and stays on the config screen when the AI response is
     page.getByText("Unable to generate the quiz right now. Please try again."),
   ).toBeVisible();
   await expect(page.getByText("Number of Questions")).toBeVisible();
+});
+
+test("confirms before leaving an in-progress quiz, and resumes it later from the sidebar", async ({
+  page,
+}) => {
+  const runId = Date.now();
+  const topicTitle = `E2E Quiz Resume ${runId}`;
+  await createTopicWithContent(page, topicTitle);
+  await setNextGroqResponse(MOCK_PORT, { questions: MOCK_QUESTIONS });
+
+  // Open the pane from the sidebar (not the per-topic button), so no topic
+  // is pre-selected and it must be chosen from the picker.
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+  await expect(page.getByText("Choose a topic")).toBeVisible();
+  await page.locator("#quiz-topic-search").fill(topicTitle);
+  await page.getByRole("main").getByRole("button", { name: topicTitle }).click();
+  await page.getByRole("button", { name: "5", exact: true }).click();
+  await page.getByRole("button", { name: "foundation", exact: true }).click();
+  await page.getByRole("button", { name: "Start Quiz" }).click();
+  await expect(page.getByText("Question 1 of 5")).toBeVisible();
+
+  // Clicking Exit mid-quiz must confirm before leaving; Stay keeps it open.
+  await page.getByRole("button", { name: "Exit Quiz" }).click();
+  await expect(page.getByRole("heading", { name: "Leave quiz?" })).toBeVisible();
+  await page.getByRole("button", { name: "Stay" }).click();
+  await expect(page.getByRole("heading", { name: "Leave quiz?" })).not.toBeVisible();
+  await expect(page.getByText("Question 1 of 5")).toBeVisible();
+
+  // Leave Quiz actually exits back to the browse view, saving progress.
+  await page.getByRole("button", { name: "Exit Quiz" }).click();
+  await page.getByRole("button", { name: "Leave Quiz" }).click();
+  await expect(page.getByRole("heading", { name: topicTitle })).toBeVisible();
+
+  // Coming back to the pane surfaces it as resumable.
+  await page.getByRole("button", { name: "Quiz", exact: true }).click();
+  await expect(page.getByText("Continue a quiz in progress")).toBeVisible();
+  const resumeRow = page
+    .locator("li")
+    .filter({ hasText: topicTitle })
+    .filter({ hasText: "answered" });
+  await expect(resumeRow).toContainText("0/5 answered");
+  await resumeRow.getByRole("button", { name: "Resume" }).click();
+  await expect(page.getByText("Question 1 of 5")).toBeVisible();
+
+  // Finish the quiz so no abandoned session is left behind for the user.
+  for (let i = 0; i < MOCK_QUESTIONS.length; i++) {
+    await page.getByRole("button", { name: "Alpha", exact: true }).click();
+    await page.getByRole("button", { name: "Submit Answer" }).click();
+    const nextLabel = i === MOCK_QUESTIONS.length - 1 ? "See Results" : "Next Question";
+    await page.getByRole("button", { name: nextLabel }).click();
+  }
+  await expect(page.getByText("Quiz Complete")).toBeVisible();
+  await expect(page.getByText("Score: 5 / 5")).toBeVisible();
 });

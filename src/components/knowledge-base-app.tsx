@@ -958,14 +958,12 @@ function QuizPane({
 
             <fieldset>
               <legend className="text-sm font-semibold">Scope</legend>
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
                 {SCOPE_OPTIONS.map((option) => (
                   <label
                     key={option}
-                    className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-center text-sm font-semibold transition-colors ${
-                      scope === option
-                        ? "border-accent bg-accent/10 text-accent"
-                        : "border-border text-muted-foreground hover:border-accent"
+                    className={`flex cursor-pointer items-center gap-2 text-sm font-medium ${
+                      scope === option ? "text-accent" : "text-muted-foreground"
                     }`}
                   >
                     <input
@@ -977,7 +975,7 @@ function QuizPane({
                         setScope(option);
                         setSelectedTopicIds([]);
                       }}
-                      className="sr-only"
+                      className="h-4 w-4 accent-accent"
                     />
                     {SCOPE_LABELS[option]}
                   </label>
@@ -1054,14 +1052,14 @@ function QuizPane({
               <legend className="text-sm font-semibold">
                 Number of Questions
               </legend>
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
                 {QUESTION_COUNT_OPTIONS.map((count) => (
                   <label
                     key={count}
-                    className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-center text-sm font-semibold transition-colors ${
+                    className={`flex cursor-pointer items-center gap-2 text-sm font-medium ${
                       questionCount === count
-                        ? "border-accent bg-accent/10 text-accent"
-                        : "border-border text-muted-foreground hover:border-accent"
+                        ? "text-accent"
+                        : "text-muted-foreground"
                     }`}
                   >
                     <input
@@ -1070,7 +1068,7 @@ function QuizPane({
                       value={count}
                       checked={questionCount === count}
                       onChange={() => setQuestionCount(count)}
-                      className="sr-only"
+                      className="h-4 w-4 accent-accent"
                     />
                     {count}
                   </label>
@@ -1079,14 +1077,14 @@ function QuizPane({
             </fieldset>
             <fieldset>
               <legend className="text-sm font-semibold">Difficulty</legend>
-              <div className="mt-2 flex gap-2">
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
                 {DIFFICULTY_OPTIONS.map((level) => (
                   <label
                     key={level}
-                    className={`flex-1 cursor-pointer rounded-md border px-3 py-2 text-center text-sm font-semibold capitalize transition-colors ${
+                    className={`flex cursor-pointer items-center gap-2 text-sm font-medium capitalize ${
                       difficulty === level
-                        ? "border-accent bg-accent/10 text-accent"
-                        : "border-border text-muted-foreground hover:border-accent"
+                        ? "text-accent"
+                        : "text-muted-foreground"
                     }`}
                   >
                     <input
@@ -1095,7 +1093,7 @@ function QuizPane({
                       value={level}
                       checked={difficulty === level}
                       onChange={() => setDifficulty(level)}
-                      className="sr-only"
+                      className="h-4 w-4 accent-accent"
                     />
                     {level}
                   </label>

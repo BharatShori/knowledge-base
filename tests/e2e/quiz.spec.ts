@@ -23,10 +23,9 @@ const MOCK_QUESTIONS = Array.from({ length: 5 }, (_, index) => ({
   explanation: `Alpha is correct for question ${index + 1}.`,
 }));
 
-// The radio inputs are visually hidden (sr-only) behind their pill-styled
-// <label>; clicking the label is what real users and Playwright's
-// actionability checks can reliably target (the tiny clipped <input>
-// itself sits behind other elements at its computed position).
+// Scopes to the right radio group by its <legend> text before clicking an
+// option, since Scope/Number of Questions/Difficulty all reuse short
+// labels (e.g. "5") that could otherwise collide with unrelated text.
 function selectQuizOption(
   page: import("@playwright/test").Page,
   groupLegend: string,

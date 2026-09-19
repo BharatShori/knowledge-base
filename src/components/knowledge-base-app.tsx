@@ -1151,7 +1151,9 @@ function TopicGeneratorFlow({
         <p className="text-sm text-muted-foreground">
           {candidates.length < BATCH_SIZE
             ? `Coverage for this category is becoming comprehensive — only ${candidates.length} new topic${candidates.length === 1 ? "" : "s"} suggested.`
-            : `${candidates.length} new topics suggested.`}
+            : `${candidates.length} new topics suggested.`}{" "}
+          Each includes a companion Reference Card, so adding one topic adds
+          two entries.
         </p>
         <ul className="max-h-[50vh] space-y-3 overflow-y-auto">
           {candidates.map((candidate, index) => (
@@ -1237,6 +1239,11 @@ function TopicGeneratorFlow({
         <p className="font-[var(--font-display)] text-3xl font-semibold">
           {savedSummary.addedCount} topic{savedSummary.addedCount === 1 ? "" : "s"}{" "}
           added
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Plus {savedSummary.addedCount} companion Reference Card
+          {savedSummary.addedCount === 1 ? "" : "s"} — {savedSummary.addedCount * 2}{" "}
+          entries in total.
         </p>
         {savedSummary.skippedDuplicateTitles.length > 0 && (
           <p className="text-sm text-muted-foreground">

@@ -72,6 +72,9 @@ test("generates, previews, selects, and saves a batch, then generates another", 
   await page.getByRole("button", { name: "Generate Next 10" }).click();
 
   await expect(page.getByText("3 new topics suggested.")).toBeVisible();
+  await expect(
+    page.getByText("Each includes a companion Reference Card"),
+  ).toBeVisible();
   await expect(page.getByText("Exact duplicate")).toBeVisible();
 
   const duplicateCheckbox = page.locator(`#candidate-0`);
@@ -85,6 +88,7 @@ test("generates, previews, selects, and saves a batch, then generates another", 
 
   await expect(page.getByText("Topics Added")).toBeVisible();
   await expect(page.getByText("1 topic added")).toBeVisible();
+  await expect(page.getByText("Plus 1 companion Reference Card")).toBeVisible();
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.waitForLoadState("networkidle");
 

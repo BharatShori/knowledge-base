@@ -1,4 +1,5 @@
 export type QuizDifficulty = "foundation" | "practitioner" | "advanced";
+export type QuizScope = "single" | "multi" | "holistic";
 
 // Plain constants with no server-only dependencies, safe to import from
 // client components as well as server code (see lib/quiz/service.ts).
@@ -8,8 +9,10 @@ export const DIFFICULTY_OPTIONS: readonly QuizDifficulty[] = [
   "practitioner",
   "advanced",
 ];
+export const SCOPE_OPTIONS: readonly QuizScope[] = ["single", "multi", "holistic"];
 export const DEFAULT_QUESTION_COUNT = 10;
 export const DEFAULT_DIFFICULTY: QuizDifficulty = "practitioner";
+export const MAX_QUIZ_TOPICS = 5;
 
 export type GeneratedQuizQuestion = {
   question: string;
@@ -40,6 +43,7 @@ export type GenerateQuizResult =
   | {
       success: true;
       quizSessionId: string;
+      topicTitles: string[];
       questions: QuizQuestionForClient[];
     };
 
@@ -65,19 +69,37 @@ export type CompleteQuizResult =
   | QuizActionError
   | {
       success: true;
-      topicTitle: string;
+      topicTitles: string[];
+      scope: QuizScope;
       difficulty: QuizDifficulty;
       questionCount: number;
       score: number;
       percentage: number;
+      durationSeconds: number | null;
       review: QuizReviewItem[];
     };
 
 export type QuizHistoryEntry = {
   id: string;
+  scope: QuizScope;
+  topicTitles: string[];
   difficulty: string;
   questionCount: number;
-  score: number;
-  percentage: number;
-  completedAt: string;
+  answeredCount: number;
+  score: number | null;
+  percentage: number | null;
+  startedAt: string;
+  completedAt: string | null;
+  durationSeconds: number | null;
 };
+
+export type ResumeQuizResult =
+  | QuizActionError
+  | {
+      success: true;
+      quizSessionId: string;
+      topicTitles: string[];
+      difficulty: QuizDifficulty;
+      questions: QuizQuestionForClient[];
+      resumeIndex: number;
+    };

@@ -636,9 +636,11 @@ type CompleteQuizSuccess = Extract<CompleteQuizResult, { success: true }>;
 
 function QuizFlow({
   topicId,
+  topicTitle,
   onClose,
 }: {
   topicId: string;
+  topicTitle: string;
   onClose: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -664,10 +666,20 @@ function QuizFlow({
   const [showReview, setShowReview] = useState(false);
 
   useEffect(() => {
-    getQuizHistory(topicId)
-      .then(setHistory)
+    getQuizHistory()
+      .then((entries) =>
+        setHistory(
+          entries.filter(
+            (entry) =>
+              entry.scope === "single" &&
+              entry.topicTitles.length === 1 &&
+              entry.topicTitles[0] === topicTitle &&
+              entry.completedAt !== null,
+          ),
+        ),
+      )
       .catch(() => {});
-  }, [topicId]);
+  }, [topicTitle]);
 
   const currentQuestion = questions[currentIndex];
   const isLastQuestion = currentIndex === questions.length - 1;
@@ -675,7 +687,7 @@ function QuizFlow({
   function startQuiz() {
     setError("");
     startTransition(async () => {
-      const result = await generateQuiz(topicId, questionCount, difficulty);
+      const result = await generateQuiz("single", [topicId], questionCount, difficulty);
       if ("error" in result) {
         setError(result.error);
         return;
@@ -734,8 +746,18 @@ function QuizFlow({
     setResults(null);
     setShowReview(false);
     setError("");
-    getQuizHistory(topicId)
-      .then(setHistory)
+    getQuizHistory()
+      .then((entries) =>
+        setHistory(
+          entries.filter(
+            (entry) =>
+              entry.scope === "single" &&
+              entry.topicTitles.length === 1 &&
+              entry.topicTitles[0] === topicTitle &&
+              entry.completedAt !== null,
+          ),
+        ),
+      )
       .catch(() => {});
   }
 
@@ -800,7 +822,7 @@ function QuizFlow({
                 <li key={entry.id}>
                   {entry.percentage}% · {entry.difficulty} ·{" "}
                   {entry.questionCount} questions ·{" "}
-                  {new Date(entry.completedAt).toLocaleDateString()}
+                  {new Date(entry.completedAt!).toLocaleDateString()}
                 </li>
               ))}
             </ul>
@@ -2162,6 +2184,7 @@ export function KnowledgeBaseApp({ data }: { data: DashboardData }) {
           <QuizFlow
             key={selectedTopic.id}
             topicId={selectedTopic.id}
+            topicTitle={selectedTopic.title}
             onClose={() => setDialog(null)}
           />
         </DialogShell>

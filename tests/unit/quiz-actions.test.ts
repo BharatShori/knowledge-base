@@ -18,7 +18,9 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-const { submitAnswer, completeQuiz, getQuizHistory } = await import("@/actions/quiz");
+const { submitAnswer, completeQuiz, resumeQuizSession, getQuizHistory } = await import(
+  "@/actions/quiz"
+);
 
 beforeEach(() => {
   quizQuestionFindUnique.mockReset();
@@ -90,12 +92,16 @@ describe("submitAnswer", () => {
   });
 });
 
+const SESSION_STARTED_AT = new Date("2026-01-01T00:00:00.000Z");
+
 describe("completeQuiz", () => {
   function makeSession(overrides: Partial<Record<string, unknown>> = {}) {
     return {
       id: "session-1",
+      scope: "single",
+      startedAt: SESSION_STARTED_AT,
       completedAt: null,
-      topic: { title: "Playwright" },
+      topics: [{ topic: { title: "Playwright" } }],
       difficulty: "practitioner",
       questions: [
         { question: "Q1", options: ["A", "B"], correctAnswer: "A", explanation: "e1", answer: { selectedAnswer: "A", isCorrect: true } },
@@ -120,12 +126,16 @@ describe("completeQuiz", () => {
     });
     expect(result).toMatchObject({
       success: true,
-      topicTitle: "Playwright",
+      topicTitles: ["Playwright"],
+      scope: "single",
       difficulty: "practitioner",
       questionCount: 3,
       score: 1,
       percentage: 33,
     });
+    if ("durationSeconds" in result) {
+      expect(result.durationSeconds).toBeGreaterThanOrEqual(0);
+    }
     if ("review" in result) {
       expect(result.review).toEqual([
         { question: "Q1", options: ["A", "B"], correctAnswer: "A", explanation: "e1", selectedAnswer: "A", isCorrect: true },
@@ -135,13 +145,24 @@ describe("completeQuiz", () => {
     }
   });
 
+  it("reports topic titles for a multi-topic session", async () => {
+    quizSessionFindUnique.mockResolvedValueOnce(
+      makeSession({
+        scope: "multi",
+        topics: [{ topic: { title: "Playwright" } }, { topic: { title: "Selenium" } }],
+      }),
+    );
+    const result = await completeQuiz("session-1");
+    expect(result).toMatchObject({ scope: "multi", topicTitles: ["Playwright", "Selenium"] });
+  });
+
   it("does not overwrite an already-completed session but still returns results", async () => {
     quizSessionFindUnique.mockResolvedValueOnce(
-      makeSession({ completedAt: new Date("2026-01-01") }),
+      makeSession({ completedAt: new Date("2026-01-01T00:05:00.000Z") }),
     );
     const result = await completeQuiz("session-1");
     expect(quizSessionUpdate).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ success: true, score: 1, questionCount: 3 });
+    expect(result).toMatchObject({ success: true, score: 1, questionCount: 3, durationSeconds: 300 });
   });
 
   it("scores a perfect quiz as 100%", async () => {
@@ -171,32 +192,136 @@ describe("completeQuiz", () => {
   });
 });
 
+describe("resumeQuizSession", () => {
+  function makeSession(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+      id: "session-1",
+      completedAt: null,
+      difficulty: "practitioner",
+      topics: [{ topic: { title: "Playwright" } }],
+      questions: [
+        { id: "q1", question: "Q1", options: ["A", "B"], displayOrder: 0, answer: { isCorrect: true } },
+        { id: "q2", question: "Q2", options: ["A", "B"], displayOrder: 1, answer: null },
+        { id: "q3", question: "Q3", options: ["A", "B"], displayOrder: 2, answer: null },
+      ],
+      ...overrides,
+    };
+  }
+
+  it("returns an error when the session does not exist", async () => {
+    quizSessionFindUnique.mockResolvedValueOnce(null);
+    expect(await resumeQuizSession("missing")).toEqual({ error: "Quiz not found." });
+  });
+
+  it("returns an error when the session is already completed", async () => {
+    quizSessionFindUnique.mockResolvedValueOnce(
+      makeSession({ completedAt: new Date() }),
+    );
+    expect(await resumeQuizSession("session-1")).toEqual({
+      error: "This quiz has already been completed.",
+    });
+  });
+
+  it("resumes at the first unanswered question", async () => {
+    quizSessionFindUnique.mockResolvedValueOnce(makeSession());
+    const result = await resumeQuizSession("session-1");
+    expect(result).toMatchObject({
+      success: true,
+      quizSessionId: "session-1",
+      topicTitles: ["Playwright"],
+      resumeIndex: 1,
+    });
+    if ("questions" in result) expect(result.questions).toHaveLength(3);
+  });
+
+  it("resumes at index 0 when nothing has been answered yet", async () => {
+    quizSessionFindUnique.mockResolvedValueOnce(
+      makeSession({
+        questions: [
+          { id: "q1", question: "Q1", options: ["A"], displayOrder: 0, answer: null },
+        ],
+      }),
+    );
+    const result = await resumeQuizSession("session-1");
+    expect(result).toMatchObject({ resumeIndex: 0 });
+  });
+
+  it("resumes past the end when every question is answered but not yet completed", async () => {
+    quizSessionFindUnique.mockResolvedValueOnce(
+      makeSession({
+        questions: [
+          { id: "q1", question: "Q1", options: ["A"], displayOrder: 0, answer: { isCorrect: true } },
+        ],
+      }),
+    );
+    const result = await resumeQuizSession("session-1");
+    expect(result).toMatchObject({ resumeIndex: 1 });
+  });
+});
+
 describe("getQuizHistory", () => {
-  it("maps stored sessions and computes percentages", async () => {
-    quizSessionFindMany.mockResolvedValueOnce([
-      {
-        id: "s1",
-        difficulty: "practitioner",
-        questionCount: 10,
-        score: 8,
-        completedAt: new Date("2026-01-01T00:00:00.000Z"),
-      },
-    ]);
-    const history = await getQuizHistory("topic-1");
+  it("maps completed and in-progress sessions, computing percentages and duration", async () => {
+    quizSessionFindMany
+      .mockResolvedValueOnce([
+        {
+          id: "in-progress-1",
+          scope: "single",
+          topics: [{ topic: { title: "Playwright" } }],
+          difficulty: "practitioner",
+          questionCount: 10,
+          score: null,
+          startedAt: new Date("2026-01-01T00:00:00.000Z"),
+          completedAt: null,
+          questions: [{ answer: { id: "a1" } }, { answer: null }],
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "s1",
+          scope: "single",
+          topics: [{ topic: { title: "Playwright" } }],
+          difficulty: "practitioner",
+          questionCount: 10,
+          score: 8,
+          startedAt: new Date("2026-01-01T00:00:00.000Z"),
+          completedAt: new Date("2026-01-01T00:10:00.000Z"),
+          questions: Array.from({ length: 10 }, () => ({ answer: { id: "a" } })),
+        },
+      ]);
+
+    const history = await getQuizHistory();
     expect(history).toEqual([
       {
-        id: "s1",
+        id: "in-progress-1",
+        scope: "single",
+        topicTitles: ["Playwright"],
         difficulty: "practitioner",
         questionCount: 10,
+        answeredCount: 1,
+        score: null,
+        percentage: null,
+        startedAt: "2026-01-01T00:00:00.000Z",
+        completedAt: null,
+        durationSeconds: null,
+      },
+      {
+        id: "s1",
+        scope: "single",
+        topicTitles: ["Playwright"],
+        difficulty: "practitioner",
+        questionCount: 10,
+        answeredCount: 10,
         score: 8,
         percentage: 80,
-        completedAt: "2026-01-01T00:00:00.000Z",
+        startedAt: "2026-01-01T00:00:00.000Z",
+        completedAt: "2026-01-01T00:10:00.000Z",
+        durationSeconds: 600,
       },
     ]);
   });
 
   it("returns an empty list when there is no history", async () => {
-    quizSessionFindMany.mockResolvedValueOnce([]);
-    expect(await getQuizHistory("topic-1")).toEqual([]);
+    quizSessionFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    expect(await getQuizHistory()).toEqual([]);
   });
 });

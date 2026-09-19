@@ -17,27 +17,40 @@ function questionMix(questionCount: number) {
   return { recall, application, scenario };
 }
 
-export function buildQuizMessages(params: {
-  topicTitle: string;
+export type QuizTopicContent = {
+  title: string;
   articleContent: string | null;
   referenceCardContent: string | null;
+};
+
+export function buildQuizMessages(params: {
+  topics: QuizTopicContent[];
   questionCount: number;
   difficulty: QuizDifficulty;
 }): ChatMessage[] {
-  const { topicTitle, articleContent, referenceCardContent, questionCount, difficulty } =
-    params;
+  const { topics, questionCount, difficulty } = params;
   const mix = questionMix(questionCount);
+  const multiTopic = topics.length > 1;
 
-  const sourceSections = [
-    referenceCardContent
-      ? `### Reference Card (use primarily for recall/concept questions)\n${referenceCardContent}`
-      : null,
-    articleContent
-      ? `### Full Article (use for application, scenario, and trade-off questions)\n${articleContent}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const topicSections = topics
+    .map((topic) => {
+      const sections = [
+        topic.referenceCardContent
+          ? `### ${topic.title} — Reference Card (use primarily for recall/concept questions)\n${topic.referenceCardContent}`
+          : null,
+        topic.articleContent
+          ? `### ${topic.title} — Full Article (use for application, scenario, and trade-off questions)\n${topic.articleContent}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      return sections;
+    })
+    .join("\n\n---\n\n");
+
+  const distributionRule = multiTopic
+    ? `\n- Distribute questions reasonably across all ${topics.length} topics listed below rather than concentrating on just one or two.`
+    : "";
 
   const system = `You are a senior Quality Engineering instructor writing a multiple-choice quiz to test practical QE understanding, not trivia.
 
@@ -49,12 +62,16 @@ Rules you must follow exactly:
 - The other 3 options must be plausible, realistic distractors, not obviously wrong.
 - Never use "All of the above" or "None of the above" as an option.
 - Never write ambiguous questions or options.
-- Do not produce duplicate questions within the same quiz.
+- Do not produce duplicate questions within the same quiz.${distributionRule}
 - Provide a concise explanation of why the correct answer is correct.
 - Respond with strict JSON only, matching this shape exactly, with no extra fields:
 {"questions":[{"question":"string","options":["string","string","string","string"],"correctAnswer":"string (must exactly match one of the options)","explanation":"string"}]}`;
 
-  const user = `Topic: ${topicTitle}
+  const topicListLine = multiTopic
+    ? `Topics (spread questions across all of them):\n${topics.map((topic) => `- ${topic.title}`).join("\n")}`
+    : `Topic: ${topics[0].title}`;
+
+  const user = `${topicListLine}
 Difficulty: ${difficulty}
 ${DIFFICULTY_GUIDANCE[difficulty]}
 
@@ -65,7 +82,7 @@ Generate exactly ${questionCount} questions with approximately this mix:
 
 Knowledge-base content:
 
-${sourceSections}`;
+${topicSections}`;
 
   return [
     { role: "system", content: system },

@@ -30,7 +30,7 @@ model Topic {
   sources        Source[]
   relatedFrom    TopicRelation[] @relation("relatedFrom")
   relatedTo      TopicRelation[] @relation("relatedTo")
-  quizSessions   QuizSession[]
+  quizSessions   QuizSessionTopic[]
   aiGenerated    Boolean        @default(false)
   aiProvider     String?
   aiModel        String?
@@ -79,18 +79,26 @@ model Source {
 }
 
 model QuizSession {
-  id            String         @id @default(cuid())
-  topicId       String
-  topic         Topic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  id            String             @id @default(cuid())
+  scope         String             @default("single")
   difficulty    String
   questionCount Int
   score         Int?
   aiProvider    String
   aiModel       String
-  startedAt     DateTime       @default(now())
+  startedAt     DateTime           @default(now())
   completedAt   DateTime?
+  topics        QuizSessionTopic[]
   questions     QuizQuestion[]
+}
 
+model QuizSessionTopic {
+  quizSessionId String
+  topicId       String
+  quizSession   QuizSession @relation(fields: [quizSessionId], references: [id], onDelete: Cascade)
+  topic         Topic       @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([quizSessionId, topicId])
   @@index([topicId])
 }
 
